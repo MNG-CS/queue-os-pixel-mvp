@@ -1,0 +1,1341 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบจัดการคิว (Admin)</title>
+    <meta name="description" content="Admin NextQ LINE for MINI App" />
+    <meta name="author" content="iton5" />
+    <meta property="og:title" content="Admin NextQ LINE-iton5-thailand" />
+    <meta property="og:description" content="Admin NextQ LINE for MINI App" />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="https://lh3.googleusercontent.com/d/1Ck_OCfEW4dEp3A1k9yfQplYmW7qmwzFF" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <style>
+        :root {
+            --color-bg-dark: #3f334d;
+            --color-bg-mid: #574b60;
+            --color-text-mid: #7d8491;
+            --color-text-light: #c0c5c1;
+            --color-accent: #eaf0ce;
+            --font-main: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+
+        body {
+            font-family: var(--font-main);
+            background: linear-gradient(135deg, var(--color-bg-dark), var(--color-bg-mid));
+            color: var(--color-text-light);
+        }
+
+        #loading-overlay {
+            position: fixed;
+            inset: 0;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            transition: opacity 0.3s ease;
+            backdrop-filter: blur(5px);
+        }
+
+        #loading-overlay img {
+            width: 60px;
+            height: 60px;
+            animation: spin 1s linear infinite;
+        }
+
+        #loading-overlay p {
+            color: white;
+            margin-top: 1rem;
+            font-size: 1rem;
+        }
+
+        @keyframes spin {
+            from {
+                transform: rotate(0deg);
+            }
+
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        .swal2-popup {
+            background: var(--color-bg-dark) !important;
+            border-radius: 1rem !important;
+        }
+
+        .swal2-title {
+            color: var(--color-accent) !important;
+        }
+
+        .swal2-html-container {
+            color: var(--color-text-light) !important;
+        }
+
+        .swal2-confirm-button {
+            background: linear-gradient(90deg, var(--color-accent), #dce4c2) !important;
+            color: var(--color-bg-dark) !important;
+            border-radius: 0.5rem !important;
+            font-weight: 600 !important;
+        }
+
+        .swal2-cancel-button {
+            background: linear-gradient(90deg, #ff6b6b, #ff8e8e) !important;
+            color: white !important;
+            border-radius: 0.5rem !important;
+            font-weight: 600 !important;
+        }
+
+
+        .admin-header {
+            background-color: rgba(255, 255, 255, 0.05);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.1);
+        }
+
+        .queue-list-item {
+            background-color: rgba(0, 0, 0, 0.2);
+            border-radius: 0.75rem;
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            transition: all 0.3s ease;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .queue-list-item[data-status="CALLED"] {
+            background-color: rgba(234, 240, 206, 0.2);
+            border-left: 5px solid var(--color-accent);
+        }
+
+        .queue-list-item[data-status="SKIPPED"],
+        .queue-list-item[data-status="CANCELLED"] {
+            background-color: rgba(125, 132, 145, 0.2);
+            opacity: 0.6;
+        }
+
+        .btn-admin {
+            padding: 0.5rem 0.75rem;
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-left: 0.5rem;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .btn-admin:active {
+            transform: scale(0.95);
+        }
+
+        .btn-admin-call {
+            background-color: var(--color-accent);
+            color: var(--color-bg-dark);
+        }
+
+        .btn-admin-skip {
+            background-color: var(--color-text-mid);
+            color: white;
+        }
+
+        .btn-admin-cancel {
+            background-color: #ff6b6b;
+            color: white;
+        }
+
+        .btn-admin-clear {
+            background: linear-gradient(90deg, #ff6b6b, #ff8e8e);
+            color: white;
+            padding: 0.75rem 1rem;
+            font-weight: 700;
+            border-radius: 0.5rem;
+            width: 100%;
+            margin-top: 1rem;
+        }
+    </style>
+</head>
+
+<body class="p-4 sm:p-6">
+
+    <div id="loading-overlay">
+        <img src="https://developers.line.biz/media/line-mini-app/LINE_spinner_light.svg" alt="Loading..."
+            loading="lazy">
+        <p id="loading-text">กำลังโหลด...</p>
+    </div>
+
+    <div id="access-denied" class="hidden text-center p-10">
+        <h1 class="text-2xl font-bold text-red-400">Access Denied</h1>
+        <p class="text-lg text-gray-300 mt-2">คุณไม่มีสิทีิในการเข้าถึงหน้านี์</p>
+    </div>
+
+    <main id="admin-content" class="max-w-2xl mx-auto opacity-0" style="transition: opacity 0.5s ease;">
+        <!-- Tab Switcher -->
+        <div class="flex space-x-2 mb-6 bg-black/20 p-1.5 rounded-lg border border-white/5">
+            <button id="tab-queues" class="flex-1 py-2 text-center rounded-md font-medium bg-[var(--color-accent)] text-[var(--color-bg-dark)] transition-all">จัดการคิว</button>
+            <button id="tab-characters" class="flex-1 py-2 text-center rounded-md font-medium text-[var(--color-text-light)] hover:text-white transition-all">ตัวละคร Pixel</button>
+            <button id="tab-props" class="flex-1 py-2 text-center rounded-md font-medium text-[var(--color-text-light)] hover:text-white transition-all">วัตถุตกแต่ง (Props)</button>
+        </div>
+
+        <!-- Panel Queues -->
+        <div id="panel-queues" class="space-y-6">
+            <header class="admin-header">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <h1 class="text-2xl font-bold text-white">Admin Dashboard</h1>
+                        <p class="text-sm text-[var(--color-text-light)]">จัดการคิวของวันนี้</p>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-lg font-bold text-[var(--color-accent)]">คิวทั้งหมด</p>
+                        <p id="queue-count" class="text-3xl font-extrabold text-white">0</p>
+                    </div>
+                </div>
+                <button id="btn-call-next" class="btn-admin btn-admin-call w-full mt-4 !text-lg !py-3">
+                    เรียกคิวถัดไป (Next WAITING)
+                </button>
+                <div class="flex items-center justify-between mt-3 px-1 text-xs text-[var(--color-text-light)]">
+                    <span>ส่งข้อความแจ้งเตือนเข้า LINE ลูกค้าเมื่อเรียกคิว (Push Message)</span>
+                    <label class="relative inline-flex items-center cursor-pointer select-none">
+                        <input type="checkbox" id="chk-send-push" checked class="sr-only peer">
+                        <div class="w-9 h-5 bg-black/40 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-green-500 border border-white/10"></div>
+                    </label>
+                </div>
+                <!-- Shop Name Configuration Section -->
+                <div class="mt-4 border-t border-white/10 pt-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                    <div class="w-full">
+                        <label class="block text-xs font-semibold text-gray-300 mb-1">ชื่อร้านค้า (Shop Name)</label>
+                        <div class="flex space-x-2">
+                            <input type="text" id="input-shop-name" value="NextQ Store" class="bg-black/30 border border-white/10 rounded px-3 py-1.5 text-sm text-white focus:outline-none focus:border-[var(--color-accent)] w-full">
+                            <button id="btn-save-shop-name" class="btn-admin btn-admin-call !m-0 !py-1.5 !px-4 text-xs font-bold whitespace-nowrap">บันทึกชื่อร้าน</button>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <section>
+                <h2 class="text-lg font-semibold mb-3">รายการคิว</h2>
+                <div id="queue-list" class="max-h-[60vh] overflow-y-auto pr-2">
+                    <!-- Queue items will be injected here by JS -->
+                    <p id="no-queues-message" class="text-center text-gray-400 py-5">ยังไม่มีคิวในวันนี้</p>
+                </div>
+            </section>
+
+            <footer class="mt-6">
+                <button id="btn-clear-all" class="btn-admin-clear">
+                    เคลียร์คิวทั้งหมด (ปิดร้าน)
+                </button>
+            </footer>
+        </div>
+
+        <!-- Panel Characters -->
+        <div id="panel-characters" class="hidden bg-black/25 p-5 sm:p-6 rounded-xl border border-white/5 space-y-6">
+            <div class="flex justify-between items-center border-b border-white/10 pb-4">
+                <div>
+                    <h2 class="text-xl font-bold text-white">ตั้งค่าตัวละคร Pixel</h2>
+                    <p class="text-sm text-[var(--color-text-mid)]">เพิ่ม/แก้ไขตัวละครที่จะใช้ในระบบจองคิว</p>
+                </div>
+                <button id="btn-add-character" class="btn-admin btn-admin-call !m-0 !text-sm">
+                    + เพิ่มตัวละครใหม่
+                </button>
+            </div>
+
+            <!-- Form to Add/Edit Character (Collapsible) -->
+            <form id="form-character" class="hidden bg-white/5 p-4 rounded-lg border border-white/10 space-y-4">
+                <h3 id="form-title" class="text-md font-semibold text-[var(--color-accent)]">เพิ่มตัวละครใหม่</h3>
+                <input type="hidden" id="char-id">
+                
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-300 mb-1">ชื่อตัวละคร</label>
+                        <input type="text" id="char-name" required placeholder="เช่น ผู้กล้า, นักเวทย์" class="w-full bg-black/30 border border-white/10 rounded px-3 py-2 text-white focus:outline-none focus:border-[var(--color-accent)]">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-300 mb-1">Sprite Sheet URL</label>
+                        <input type="url" id="char-url" required placeholder="https://example.com/sprite.png" class="w-full bg-black/30 border border-white/10 rounded px-3 py-2 text-white focus:outline-none focus:border-[var(--color-accent)]">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-300 mb-1">จำนวนคอลัมน์ (Cols)</label>
+                        <input type="number" id="char-cols" required min="1" value="4" class="w-full bg-black/30 border border-white/10 rounded px-3 py-2 text-white focus:outline-none focus:border-[var(--color-accent)]">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-300 mb-1">จำนวนแถว (Rows)</label>
+                        <input type="number" id="char-rows" required min="1" value="4" class="w-full bg-black/30 border border-white/10 rounded px-3 py-2 text-white focus:outline-none focus:border-[var(--color-accent)]">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-300 mb-1">CSS Filter (สำหรับปรับโทนสี/สลับสี)</label>
+                        <input type="text" id="char-filter" placeholder="เช่น hue-rotate(120deg) หรือ brightness(0.8)" class="w-full bg-black/30 border border-white/10 rounded px-3 py-2 text-white focus:outline-none focus:border-[var(--color-accent)]">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-300 mb-1">ตัวคูณขนาด (Scale เช่น 1.0, 1.2, 0.8)</label>
+                        <input type="number" id="char-scale" required min="0.2" max="3" step="0.1" value="1.0" class="w-full bg-black/30 border border-white/10 rounded px-3 py-2 text-white focus:outline-none focus:border-[var(--color-accent)]">
+                    </div>
+                </div>
+
+                <!-- Live Preview of edited character -->
+                <div class="flex items-center space-x-4 p-3 bg-black/20 rounded border border-white/5">
+                    <div class="text-xs font-semibold text-gray-300">ตัวอย่างอนิเมชัน:</div>
+                    <div id="char-preview-container" class="w-12 h-12 overflow-hidden relative border border-white/10 rounded bg-black/40">
+                        <div id="char-preview-sprite" class="absolute bg-no-repeat" style="width: 48px; height: 48px; background-size: 400% 400%;"></div>
+                    </div>
+                    <div class="text-xs text-gray-400">หันหน้าลง (แถวที่ 1) กำลังเดิน</div>
+                </div>
+
+                <div class="flex justify-end space-x-2 pt-2">
+                    <button type="button" id="btn-cancel-char" class="btn-admin btn-admin-skip !m-0">ยกเลิก</button>
+                    <button type="submit" class="btn-admin btn-admin-call !m-0">บันทึก</button>
+                </div>
+            </form>
+
+            <!-- Character Grid -->
+            <div id="characters-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[50vh] overflow-y-auto pr-2">
+                <!-- Injected dynamically -->
+            </div>
+        </div>
+
+        <!-- Panel Props -->
+        <div id="panel-props" class="hidden bg-black/25 p-5 sm:p-6 rounded-xl border border-white/5 space-y-6">
+            <div class="flex justify-between items-center border-b border-white/10 pb-4">
+                <div>
+                    <h2 class="text-xl font-bold text-white">ตั้งค่าวัตถุตกแต่ง (Props)</h2>
+                    <p class="text-sm text-[var(--color-text-mid)]">เพิ่ม/แก้ไขวัตถุประดับที่จะนำไปวางบนบอร์ดและให้ตัวละครเดินหลบ</p>
+                </div>
+                <button id="btn-add-prop-trigger" class="btn-admin btn-admin-call !m-0 !text-sm">
+                    + เพิ่มวัตถุใหม่
+                </button>
+            </div>
+
+            <!-- Interactive Visual Playground for Props -->
+            <div id="prop-visual-playground" class="relative w-full h-[220px] bg-gradient-to-b from-[#3b2b4a] to-[#22182c] border border-white/10 rounded-xl overflow-hidden shadow-inner select-none mb-4">
+                <!-- Doorway Visual -->
+                <div style="position: absolute; top: 15px; left: 50%; transform: translateX(-50%); width: 50px; height: 30px; background-color: #150d1d; border: 2px solid #8e70aa; border-bottom: none; border-radius: 4px 4px 0 0; opacity: 0.7;"></div>
+                <div class="absolute bottom-2 left-3 text-[10px] text-white/30 uppercase tracking-wider font-bold pointer-events-none">
+                    Sidewalk Sandbox (ลากไอเทมเพื่อปรับตำแหน่งในฉาก)
+                </div>
+            </div>
+
+            <!-- Form to Add/Edit Prop (Collapsible) -->
+            <form id="form-prop" class="hidden bg-white/5 p-4 rounded-lg border border-white/10 space-y-4">
+                <h3 id="prop-form-title" class="text-md font-semibold text-[var(--color-accent)]">เพิ่มวัตถุใหม่</h3>
+                <input type="hidden" id="prop-id">
+                
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-300 mb-1">ชื่อวัตถุ</label>
+                        <input type="text" id="prop-name" required placeholder="เช่น กระถางต้นไม้, ม้านั่ง" class="w-full bg-black/30 border border-white/10 rounded px-3 py-2 text-white focus:outline-none focus:border-[var(--color-accent)]">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-300 mb-1">Image URL ของวัตถุ</label>
+                        <input type="url" id="prop-url" required placeholder="https://example.com/prop.png" class="w-full bg-black/30 border border-white/10 rounded px-3 py-2 text-white focus:outline-none focus:border-[var(--color-accent)]">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-300 mb-1">ตำแหน่งแกน X Ratio (0.0 ถึง 1.0)</label>
+                        <input type="number" id="prop-x-ratio" required min="0" max="1" step="0.01" value="0.5" class="w-full bg-black/30 border border-white/10 rounded px-3 py-2 text-white focus:outline-none focus:border-[var(--color-accent)]">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-300 mb-1">ตำแหน่งแกน Y Ratio (0.0 ถึง 1.0)</label>
+                        <input type="number" id="prop-y-ratio" required min="0" max="1" step="0.01" value="0.5" class="w-full bg-black/30 border border-white/10 rounded px-3 py-2 text-white focus:outline-none focus:border-[var(--color-accent)]">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-300 mb-1">ความกว้าง (Width px)</label>
+                        <input type="number" id="prop-width" required min="10" value="40" class="w-full bg-black/30 border border-white/10 rounded px-3 py-2 text-white focus:outline-none focus:border-[var(--color-accent)]">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-300 mb-1">ความสูง (Height px)</label>
+                        <input type="number" id="prop-height" required min="10" value="40" class="w-full bg-black/30 border border-white/10 rounded px-3 py-2 text-white focus:outline-none focus:border-[var(--color-accent)]">
+                    </div>
+                    <div class="sm:col-span-2">
+                        <label class="block text-xs font-semibold text-gray-300 mb-1">รัศมีการชนหลบสิ่งกีดขวาง (Collision Radius px)</label>
+                        <input type="number" id="prop-collision" required min="5" value="20" class="w-full bg-black/30 border border-white/10 rounded px-3 py-2 text-white focus:outline-none focus:border-[var(--color-accent)]">
+                    </div>
+                </div>
+
+                <div class="flex justify-end space-x-2 pt-2">
+                    <button type="button" id="btn-cancel-prop" class="btn-admin btn-admin-skip !m-0">ยกเลิก</button>
+                    <button type="submit" class="btn-admin btn-admin-call !m-0">บันทึก</button>
+                </div>
+            </form>
+
+            <!-- Props Grid -->
+            <div id="props-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[50vh] overflow-y-auto pr-2">
+                <!-- Injected dynamically -->
+            </div>
+        </div>
+    </main>
+
+    <script type="module">
+        let SUPABASE_URL = "";
+        let SUPABASE_KEY = "";
+        let ADMIN_LIFF_ID = "";
+        const API_FUNCTION_NAME = 'api';
+        const POLLING_INTERVAL_MS = 5000;
+
+        let supabase;
+        let lineUserId = null;
+        let characters = [];
+        let animIntervalId = null;
+
+        const loadingOverlay = document.getElementById('loading-overlay');
+        const loadingText = document.getElementById('loading-text');
+        const adminContent = document.getElementById('admin-content');
+        const accessDenied = document.getElementById('access-denied');
+        const queueCountEl = document.getElementById('queue-count');
+        const queueListEl = document.getElementById('queue-list');
+        const noQueuesMessage = document.getElementById('no-queues-message');
+        const btnCallNext = document.getElementById('btn-call-next');
+        const btnClearAll = document.getElementById('btn-clear-all');
+
+        // Shop Name elements
+        const inputShopName = document.getElementById('input-shop-name');
+        const btnSaveShopName = document.getElementById('btn-save-shop-name');
+
+        // Tab switcher elements
+        const tabQueues = document.getElementById('tab-queues');
+        const tabCharacters = document.getElementById('tab-characters');
+        const panelQueues = document.getElementById('panel-queues');
+        const panelCharacters = document.getElementById('panel-characters');
+
+        // Character form elements
+        const btnAddCharacter = document.getElementById('btn-add-character');
+        const formCharacter = document.getElementById('form-character');
+        const formTitle = document.getElementById('form-title');
+        const charIdInput = document.getElementById('char-id');
+        const charNameInput = document.getElementById('char-name');
+        const charUrlInput = document.getElementById('char-url');
+        const charColsInput = document.getElementById('char-cols');
+        const charRowsInput = document.getElementById('char-rows');
+        const charFilterInput = document.getElementById('char-filter');
+        const charScaleInput = document.getElementById('char-scale');
+        const btnCancelChar = document.getElementById('btn-cancel-char');
+        const previewSprite = document.getElementById('char-preview-sprite');
+        const charactersGrid = document.getElementById('characters-grid');
+
+        // Props elements
+        const tabProps = document.getElementById('tab-props');
+        const panelProps = document.getElementById('panel-props');
+        const propPlayground = document.getElementById('prop-visual-playground');
+        const btnAddPropTrigger = document.getElementById('btn-add-prop-trigger');
+        const formProp = document.getElementById('form-prop');
+        const propFormTitle = document.getElementById('prop-form-title');
+        const propIdInput = document.getElementById('prop-id');
+        const propNameInput = document.getElementById('prop-name');
+        const propUrlInput = document.getElementById('prop-url');
+        const propXRatioInput = document.getElementById('prop-x-ratio');
+        const propYRatioInput = document.getElementById('prop-y-ratio');
+        const propWidthInput = document.getElementById('prop-width');
+        const propHeightInput = document.getElementById('prop-height');
+        const propCollisionInput = document.getElementById('prop-collision');
+        const btnCancelProp = document.getElementById('btn-cancel-prop');
+        const propsGrid = document.getElementById('props-grid');
+
+        let props = [];
+        let activeDragPropId = null;
+        let dragOffsetX = 0;
+        let dragOffsetY = 0;
+
+        function showLoading(message) {
+            loadingText.textContent = message;
+            loadingOverlay.style.display = 'flex';
+            loadingOverlay.style.opacity = 1;
+        }
+        function hideLoading() {
+            loadingOverlay.style.opacity = 0;
+            setTimeout(() => { loadingOverlay.style.display = 'none'; }, 300);
+        }
+        function showError(title, text) {
+            Swal.fire({ icon: 'error', title: title, text: text });
+        }
+
+        async function loadConfig() {
+            try {
+                const response = await fetch('./config.json');
+                const config = await response.json();
+                SUPABASE_URL = config.SUPABASE_URL;
+                SUPABASE_KEY = config.SUPABASE_KEY;
+                ADMIN_LIFF_ID = config.ADMIN_LIFF_ID;
+                return true;
+            } catch (err) {
+                console.error("Error loading config:", err);
+                showError("Config Error", "ไม่สามารถโหลดไฟล์ config.json ได้");
+                return false;
+            }
+        }
+
+        async function initializeLiffAndAuth() {
+            try {
+                showLoading("กำลังยืนยันตัวตน...");
+                await liff.init({ liffId: ADMIN_LIFF_ID, withLoginOnExternalBrowser: true });
+
+                if (!liff.isLoggedIn()) {
+                    liff.login({ redirectUri: window.location.href });
+                    return false;
+                }
+
+                const profile = await liff.getProfile();
+                lineUserId = profile.userId;
+
+                const { data, error } = await supabase.functions.invoke(API_FUNCTION_NAME, {
+                    body: {
+                        action: 'check-admin-auth',
+                        payload: { lineUserId: lineUserId }
+                    }
+                });
+
+                if (error || !data.isAdmin) {
+                    showLoading("คุณไม่มีสิทธิ์");
+                    adminContent.classList.add('hidden');
+                    accessDenied.classList.remove('hidden');
+                    hideLoading();
+                    return false;
+                }
+
+                return true;
+
+            } catch (error) {
+                console.error('Auth Error:', error);
+                showError('Auth Error', 'ไม่สามารถยืนยันตัวตนได้: ' + error.message);
+                return false;
+            }
+        }
+
+        function initializeSupabase() {
+            try {
+                supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+            } catch (error) {
+                console.error('Supabase Init Error:', error);
+                showError('Supabase Error', 'ไม่สามารถเชื่อมต่อฐานข้อมูลได้');
+            }
+        }
+
+        async function fetchAllQueues(silent = false) {
+            if (!silent) {
+                showLoading("กำลังโหลดรายการคิว...");
+            }
+            try {
+                const { data, error } = await supabase.functions.invoke(API_FUNCTION_NAME, {
+                    body: {
+                        action: 'get-all-queues-today',
+                        payload: {}
+                    }
+                });
+                if (error) throw error;
+                if (data.error) throw new Error(data.error);
+
+                renderQueueList(data.queues);
+
+            } catch (error) {
+                console.error('Fetch Queues Error:', error);
+                if (!silent) {
+                    showError('ผิดพลาด', 'ไม่สามารถโหลดรายการคิวได้');
+                }
+            } finally {
+                if (!silent) {
+                    hideLoading();
+                }
+            }
+        }
+
+        let lastQueuesJson = '';
+        function renderQueueList(queues) {
+            const currentJson = JSON.stringify(queues);
+            if (currentJson === lastQueuesJson) {
+                return;
+            }
+            lastQueuesJson = currentJson;
+
+            queueListEl.innerHTML = '';
+
+            if (!queues || queues.length === 0) {
+                queueListEl.appendChild(noQueuesMessage);
+                noQueuesMessage.classList.remove('hidden');
+                queueCountEl.textContent = "0";
+                return;
+            }
+
+            noQueuesMessage.classList.add('hidden');
+            queueCountEl.textContent = queues.length;
+
+            queues.forEach(q => {
+                const item = document.createElement('div');
+                item.className = 'queue-list-item';
+                item.setAttribute('data-id', q.id);
+                item.setAttribute('data-status', q.status);
+
+                item.innerHTML = `
+                    <div class="flex items-center space-x-3">
+                        <img src="${q.picture_url || 'https://placehold.co/40x40/574b60/eaf0ce?text=Q'}" alt="pic" class="w-10 h-10 rounded-full" loading="lazy">
+                        <div>
+                            <p class="text-lg font-bold text-white">Q: ${q.queue_number}</p>
+                            <p class="text-sm text-gray-300">${q.display_name} (${q.status})</p>
+                        </div>
+                    </div>
+                    <div class="flex-shrink-0">
+                        ${q.status === 'WAITING' ? `
+                            <button class="btn-admin btn-admin-call" data-action="admin-call-specific" data-id="${q.id}">เรียก</button>
+                            <button class="btn-admin btn-admin-skip" data-action="admin-skip-queue" data-id="${q.id}">ข้าม</button>
+                        ` : ''}
+                        ${q.status !== 'CANCELLED' ? `
+                            <button class="btn-admin btn-admin-cancel" data-action="admin-cancel-queue" data-id="${q.id}">ยกเลิก</button>
+                        ` : ''}
+                    </div>
+                `;
+                queueListEl.appendChild(item);
+            });
+        }
+
+        async function handleListClick(e) {
+            const target = e.target;
+            const actionName = target.dataset.action;
+            const id = target.dataset.id;
+
+            if (!actionName || !id) return;
+
+            let loadingMessage = '';
+            let confirmTitle = '';
+
+            switch (actionName) {
+                case 'admin-call-specific':
+                    loadingMessage = 'กำลังเรียกคิว...';
+                    confirmTitle = 'ยืนยันการเรียกคิวนี้?';
+                    break;
+                case 'admin-skip-queue':
+                    loadingMessage = 'กำลังข้ามคิว...';
+                    confirmTitle = 'ยืนยันการข้ามคิวนี้?';
+                    break;
+                case 'admin-cancel-queue':
+                    loadingMessage = 'กำลังยกเลิกคิว...';
+                    confirmTitle = 'ยืนยันการยกเลิกคิวนี้?';
+                    break;
+                default:
+                    return;
+            }
+
+            const result = await Swal.fire({
+                title: confirmTitle,
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'ยืนยัน',
+                cancelButtonText: 'ยกเลิก'
+            });
+
+            if (!result.isConfirmed) return;
+
+            showLoading(loadingMessage);
+            try {
+                const sendPush = document.getElementById('chk-send-push').checked;
+                const { data, error } = await supabase.functions.invoke(API_FUNCTION_NAME, {
+                    body: {
+                        action: actionName,
+                        payload: { queueId: id, lineUserId: lineUserId, skipPush: !sendPush }
+                    }
+                });
+                if (error) throw new Error(error.message);
+                if (data.error) throw new Error(data.error);
+
+                Swal.fire('สำเร็จ!', data.message, 'success');
+                await fetchAllQueues(true);
+
+            } catch (error) {
+                showError('ผิดพลาด', error.message);
+            } finally {
+                hideLoading();
+            }
+        }
+
+        async function handleCallNext() {
+            showLoading("กำลังเรียกคิวถัดไป...");
+            try {
+                const sendPush = document.getElementById('chk-send-push').checked;
+                const { data, error } = await supabase.functions.invoke(API_FUNCTION_NAME, {
+                    body: {
+                        action: 'admin-call-next',
+                        payload: { lineUserId: lineUserId, skipPush: !sendPush }
+                    }
+                });
+                if (error) throw new Error(error.message);
+                if (data.error) throw new Error(data.error);
+
+                Swal.fire('เรียกคิวสำเร็จ!', data.message, 'success');
+                await fetchAllQueues(true);
+
+            } catch (error) {
+                showError('ผิดพลาด', error.message);
+            } finally {
+                hideLoading();
+            }
+        }
+
+        async function handleClearAll() {
+            const result = await Swal.fire({
+                title: 'ยืนยันการล้างคิวทั้งหมด',
+                text: "คิวของวันนี้ทั้งหมดจะถูกลบ! (ใช้ตอนปิดร้าน)",
+                icon: 'error',
+                showCancelButton: true,
+                confirmButtonText: 'ใช่, ลบทั้งหมด',
+                cancelButtonText: 'ยกเลิก',
+                confirmButtonColor: '#d33',
+            });
+
+            if (result.isConfirmed) {
+                showLoading("กำลังล้างคิวทั้งหมด...");
+                try {
+                    const { data, error } = await supabase.functions.invoke(API_FUNCTION_NAME, {
+                        body: {
+                            action: 'admin-clear-all',
+                            payload: { lineUserId: lineUserId }
+                        }
+                    });
+                    if (error) throw new Error(error.message);
+                    if (data.error) throw new Error(data.error);
+
+                    Swal.fire('สำเร็จ!', 'คิวทั้งหมดถูกลบแล้ว', 'success');
+                    await fetchAllQueues(true);
+
+                } catch (error) {
+                    showError('ผิดพลาด', error.message);
+                } finally {
+                    hideLoading();
+                }
+            }
+        }
+
+        // --- SHOP NAME LOGIC ---
+        async function fetchShopName() {
+            try {
+                const { data, error } = await supabase
+                    .from('queue_service_status')
+                    .select('shop_name')
+                    .eq('id', 1)
+                    .single();
+                if (error) throw error;
+                if (data && data.shop_name) {
+                    inputShopName.value = data.shop_name;
+                }
+            } catch (err) {
+                console.error("Error fetching shop name:", err);
+            }
+        }
+
+        async function handleSaveShopName() {
+            const shopName = inputShopName.value.trim();
+            if (!shopName) {
+                showError("ผิดพลาด", "กรุณากรอกชื่อร้านค้า");
+                return;
+            }
+
+            showLoading("กำลังบันทึกชื่อร้านค้า...");
+            try {
+                const { data, error } = await supabase.functions.invoke(API_FUNCTION_NAME, {
+                    body: {
+                        action: 'admin-update-shop-name',
+                        payload: { lineUserId, shopName }
+                    }
+                });
+                if (error) throw error;
+                if (data.error) throw new Error(data.error);
+
+                Swal.fire('สำเร็จ!', 'แก้ไขชื่อร้านค้าเรียบร้อยแล้ว', 'success');
+            } catch (err) {
+                console.error("Save shop name error:", err);
+                showError("ผิดพลาด", "ไม่สามารถบันทึกชื่อร้านค้าได้: " + err.message);
+            } finally {
+                hideLoading();
+            }
+        }
+
+        // --- CHARACTER SETTINGS LOGIC ---
+        async function fetchCharacters() {
+            try {
+                const { data, error } = await supabase.from('characters').select('*').order('created_at', { ascending: true });
+                if (error) throw error;
+                characters = data || [];
+                renderCharactersGrid();
+            } catch (error) {
+                console.error("Error fetching characters:", error);
+                showError("ผิดพลาด", "ไม่สามารถโหลดข้อมูลตัวละครได้: " + error.message);
+            }
+        }
+
+        function renderCharactersGrid() {
+            charactersGrid.innerHTML = '';
+            
+            if (characters.length === 0) {
+                charactersGrid.innerHTML = `<p class="col-span-full text-center text-gray-400 py-6">ยังไม่มีตัวละครในระบบ</p>`;
+                return;
+            }
+
+            characters.forEach((char) => {
+                const card = document.createElement('div');
+                card.className = 'bg-white/5 border border-white/10 rounded-lg p-4 flex items-center justify-between hover:border-white/20 transition-all';
+                card.innerHTML = `
+                    <div class="flex items-center space-x-4">
+                        <div class="w-12 h-12 overflow-hidden relative border border-white/5 rounded bg-black/20 flex-shrink-0">
+                            <div class="absolute bg-no-repeat char-sprite-anim" data-sprite-url="${char.sprite_url}" data-cols="${char.cols}" data-rows="${char.rows}" data-filter="${char.css_filter || ''}" style="width: 48px; height: 48px; background-image: url('${char.sprite_url}'); background-size: ${char.cols * 100}% ${char.rows * 100}%; filter: ${char.css_filter || 'none'};"></div>
+                        </div>
+                        <div>
+                            <h4 class="font-bold text-white">${char.name}</h4>
+                            <p class="text-xs text-gray-400">${char.cols}x${char.rows} เฟรม ${char.css_filter ? '| filter: ' + char.css_filter : ''}</p>
+                        </div>
+                    </div>
+                    <div class="flex space-x-2">
+                        <button class="btn-admin btn-admin-call !m-0 !py-1.5 !px-3 text-xs btn-edit-char" data-id="${char.id}">แก้ไข</button>
+                        <button class="btn-admin btn-admin-cancel !m-0 !py-1.5 !px-3 text-xs btn-delete-char" data-id="${char.id}">ลบ</button>
+                    </div>
+                `;
+                charactersGrid.appendChild(card);
+            });
+
+            startSpritesAnimation();
+        }
+
+        function startSpritesAnimation() {
+            if (animIntervalId) clearInterval(animIntervalId);
+            
+            let frame = 0;
+            animIntervalId = setInterval(() => {
+                frame = (frame + 1) % 4;
+                
+                // Form Preview anim
+                if (previewSprite && previewSprite.dataset.url) {
+                    const cols = parseInt(previewSprite.dataset.cols) || 4;
+                    const curFrame = frame % cols;
+                    const xPercent = cols > 1 ? (curFrame / (cols - 1)) * 100 : 0;
+                    previewSprite.style.backgroundPosition = `${xPercent}% 0%`; // Face down animation (Row 0)
+                }
+
+                // Grid anims
+                const anims = document.querySelectorAll('.char-sprite-anim');
+                anims.forEach(anim => {
+                    const cols = parseInt(anim.dataset.cols) || 4;
+                    const curFrame = frame % cols;
+                    const xPercent = cols > 1 ? (curFrame / (cols - 1)) * 100 : 0;
+                    anim.style.backgroundPosition = `${xPercent}% 0%`;
+                });
+            }, 200);
+        }
+
+        function updateFormPreview() {
+            const url = charUrlInput.value || 'https://placehold.co/192x192/black/white?text=Sprite';
+            const cols = parseInt(charColsInput.value) || 4;
+            const rows = parseInt(charRowsInput.value) || 4;
+            const filter = charFilterInput.value || 'none';
+
+            previewSprite.style.backgroundImage = `url('${url}')`;
+            previewSprite.style.backgroundSize = `${cols * 100}% ${rows * 100}%`;
+            previewSprite.style.filter = filter;
+            previewSprite.dataset.url = url;
+            previewSprite.dataset.cols = cols;
+            previewSprite.dataset.rows = rows;
+        }
+
+        charUrlInput.addEventListener('input', updateFormPreview);
+        charColsInput.addEventListener('input', updateFormPreview);
+        charRowsInput.addEventListener('input', updateFormPreview);
+        charFilterInput.addEventListener('input', updateFormPreview);
+
+        btnAddCharacter.addEventListener('click', () => {
+            formCharacter.classList.remove('hidden');
+            formTitle.textContent = "เพิ่มตัวละครใหม่";
+            charIdInput.value = "";
+            charNameInput.value = "";
+            charUrlInput.value = "";
+            charColsInput.value = "4";
+            charRowsInput.value = "4";
+            charFilterInput.value = "";
+            updateFormPreview();
+            charNameInput.focus();
+        });
+
+        btnCancelChar.addEventListener('click', () => {
+            formCharacter.classList.add('hidden');
+        });
+
+        formCharacter.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = charIdInput.value;
+            const name = charNameInput.value;
+            const sprite_url = charUrlInput.value;
+            const cols = parseInt(charColsInput.value) || 4;
+            const rows = parseInt(charRowsInput.value) || 4;
+            const css_filter = charFilterInput.value || null;
+            const scale = parseFloat(charScaleInput.value) || 1.0;
+
+            showLoading("กำลังบันทึกข้อมูล...");
+            try {
+                if (id) {
+                    // Update via Edge Function
+                    const { data, error } = await supabase.functions.invoke(API_FUNCTION_NAME, {
+                        body: {
+                            action: 'admin-update-character',
+                            payload: { lineUserId, id, name, sprite_url, cols, rows, css_filter, scale }
+                        }
+                    });
+                    if (error) throw error;
+                    if (data.error) throw new Error(data.error);
+                    Swal.fire('สำเร็จ!', 'แก้ไขข้อมูลตัวละครแล้ว', 'success');
+                } else {
+                    // Insert via Edge Function
+                    const { data, error } = await supabase.functions.invoke(API_FUNCTION_NAME, {
+                        body: {
+                            action: 'admin-add-character',
+                            payload: { lineUserId, name, sprite_url, cols, rows, css_filter, scale }
+                        }
+                    });
+                    if (error) throw error;
+                    if (data.error) throw new Error(data.error);
+                    Swal.fire('สำเร็จ!', 'เพิ่มตัวละครใหม่แล้ว', 'success');
+                }
+                formCharacter.classList.add('hidden');
+                await fetchCharacters();
+            } catch (err) {
+                console.error("Save character error:", err);
+                showError("ผิดพลาด", "ไม่สามารถบันทึกตัวละครได้: " + err.message);
+            } finally {
+                hideLoading();
+            }
+        });
+
+        charactersGrid.addEventListener('click', async (e) => {
+            const editBtn = e.target.closest('.btn-edit-char');
+            const deleteBtn = e.target.closest('.btn-delete-char');
+
+            if (editBtn) {
+                const id = editBtn.dataset.id;
+                const char = characters.find(c => c.id === id);
+                if (char) {
+                    formCharacter.classList.remove('hidden');
+                    formTitle.textContent = "แก้ไขข้อมูลตัวละคร";
+                    charIdInput.value = char.id;
+                    charNameInput.value = char.name;
+                    charUrlInput.value = char.sprite_url;
+                    charColsInput.value = char.cols;
+                    charRowsInput.value = char.rows;
+                    charFilterInput.value = char.css_filter || "";
+                    charScaleInput.value = char.scale !== undefined ? char.scale : "1.0";
+                    updateFormPreview();
+                    charNameInput.focus();
+                }
+            } else if (deleteBtn) {
+                const id = deleteBtn.dataset.id;
+                const result = await Swal.fire({
+                    title: 'ยืนยันการลบตัวละครนี้?',
+                    text: "ตัวละครนี้จะไม่สามารถเลือกได้อีกในการจองคิวใหม่",
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonText: 'ใช่, ลบเลย',
+                    cancelButtonText: 'ยกเลิก',
+                    confirmButtonColor: '#d33',
+                });
+
+                if (result.isConfirmed) {
+                    showLoading("กำลังลบตัวละคร...");
+                    try {
+                        const { data, error } = await supabase.functions.invoke(API_FUNCTION_NAME, {
+                            body: {
+                                action: 'admin-delete-character',
+                                payload: { lineUserId, id }
+                            }
+                        });
+                        if (error) throw error;
+                        if (data.error) throw new Error(data.error);
+                        Swal.fire('สำเร็จ!', 'ลบตัวละครเรียบร้อยแล้ว', 'success');
+                        await fetchCharacters();
+                    } catch (err) {
+                        showError("ผิดพลาด", "ไม่สามารถลบตัวละครได้: " + err.message);
+                    } finally {
+                        hideLoading();
+                    }
+                }
+            }
+        });
+
+        // Tab Switching
+        tabQueues.addEventListener('click', () => {
+            tabQueues.className = "flex-1 py-2 text-center rounded-md font-medium bg-[var(--color-accent)] text-[var(--color-bg-dark)] transition-all";
+            tabCharacters.className = "flex-1 py-2 text-center rounded-md font-medium text-[var(--color-text-light)] hover:text-white transition-all";
+            tabProps.className = "flex-1 py-2 text-center rounded-md font-medium text-[var(--color-text-light)] hover:text-white transition-all";
+            panelQueues.classList.remove('hidden');
+            panelCharacters.classList.add('hidden');
+            panelProps.classList.add('hidden');
+        });
+
+        tabCharacters.addEventListener('click', () => {
+            tabCharacters.className = "flex-1 py-2 text-center rounded-md font-medium bg-[var(--color-accent)] text-[var(--color-bg-dark)] transition-all";
+            tabQueues.className = "flex-1 py-2 text-center rounded-md font-medium text-[var(--color-text-light)] hover:text-white transition-all";
+            tabProps.className = "flex-1 py-2 text-center rounded-md font-medium text-[var(--color-text-light)] hover:text-white transition-all";
+            panelQueues.classList.add('hidden');
+            panelCharacters.classList.remove('hidden');
+            panelProps.classList.add('hidden');
+            fetchCharacters();
+        });
+
+        tabProps.addEventListener('click', () => {
+            tabProps.className = "flex-1 py-2 text-center rounded-md font-medium bg-[var(--color-accent)] text-[var(--color-bg-dark)] transition-all";
+            tabQueues.className = "flex-1 py-2 text-center rounded-md font-medium text-[var(--color-text-light)] hover:text-white transition-all";
+            tabCharacters.className = "flex-1 py-2 text-center rounded-md font-medium text-[var(--color-text-light)] hover:text-white transition-all";
+            panelQueues.classList.add('hidden');
+            panelCharacters.classList.add('hidden');
+            panelProps.classList.remove('hidden');
+            fetchProps();
+        });
+
+        // --- PROPS SETTINGS LOGIC ---
+        async function fetchProps() {
+            try {
+                const { data, error } = await supabase.from('props').select('*').order('created_at', { ascending: true });
+                if (error) throw error;
+                props = data || [];
+                renderPropsGrid();
+                renderPropsPlayground();
+            } catch (error) {
+                console.error("Error fetching props:", error);
+                showError("ผิดพลาด", "ไม่สามารถโหลดข้อมูลวัตถุตกแต่งได้: " + error.message);
+            }
+        }
+
+        function renderPropsGrid() {
+            propsGrid.innerHTML = '';
+            if (props.length === 0) {
+                propsGrid.innerHTML = `<p class="col-span-full text-center text-gray-400 py-6">ยังไม่มีวัตถุตกแต่งในระบบ</p>`;
+                return;
+            }
+            props.forEach((p) => {
+                const card = document.createElement('div');
+                card.className = 'bg-white/5 border border-white/10 rounded-lg p-4 flex items-center justify-between hover:border-white/20 transition-all';
+                card.innerHTML = `
+                    <div class="flex items-center space-x-4">
+                        <img src="${p.image_url}" alt="${p.name}" class="w-10 h-10 object-contain flex-shrink-0 bg-black/20 rounded border border-white/5" onerror="this.src='https://placehold.co/40x40/574b60/eaf0ce?text=Prop'">
+                        <div>
+                            <h4 class="font-bold text-white">${p.name}</h4>
+                            <p class="text-xs text-gray-400">ขนาด: ${p.width}x${p.height} | Pos: (${p.x_ratio}, ${p.y_ratio}) | R: ${p.collision_radius}</p>
+                        </div>
+                    </div>
+                    <div class="flex space-x-2">
+                        <button class="btn-admin btn-admin-call !m-0 !py-1.5 !px-3 text-xs btn-edit-prop" data-id="${p.id}">แก้ไข</button>
+                        <button class="btn-admin btn-admin-cancel !m-0 !py-1.5 !px-3 text-xs btn-delete-prop" data-id="${p.id}">ลบ</button>
+                    </div>
+                `;
+                propsGrid.appendChild(card);
+            });
+        }
+
+        function renderPropsPlayground() {
+            // Remove old playground items
+            propPlayground.querySelectorAll('.playground-item').forEach(el => el.remove());
+            
+            const pWidth = propPlayground.clientWidth || 600;
+            const pHeight = propPlayground.clientHeight || 220;
+
+            props.forEach(p => {
+                const item = document.createElement('div');
+                item.className = 'playground-item absolute cursor-move group';
+                item.style.width = `${p.width}px`;
+                item.style.height = `${p.height}px`;
+                
+                const leftPx = (parseFloat(p.x_ratio) * pWidth) - (p.width / 2);
+                const topPx = (parseFloat(p.y_ratio) * pHeight) - (p.height / 2);
+                
+                item.style.left = `${leftPx}px`;
+                item.style.top = `${topPx}px`;
+                item.style.zIndex = Math.floor(parseFloat(p.y_ratio) * pHeight);
+                
+                item.innerHTML = `
+                    <img src="${p.image_url}" class="w-full h-full object-contain pointer-events-none select-none" onerror="this.src='https://placehold.co/40x40/574b60/eaf0ce?text=Prop'">
+                    <!-- Tooltip label -->
+                    <div class="absolute -top-6 left-1/2 transform -translate-x-1/2 bg-black/80 text-[8px] text-white px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50 border border-white/10">
+                        ${p.name} (${p.x_ratio}, ${p.y_ratio})
+                    </div>
+                    <!-- Collision ring visualization -->
+                    <div class="absolute border border-dashed border-yellow-400/55 rounded-full pointer-events-none" style="width: ${p.collision_radius * 2}px; height: ${p.collision_radius * 2}px; left: ${p.width/2 - p.collision_radius}px; top: ${p.height/2 - p.collision_radius}px;"></div>
+                `;
+
+                // Add drag events
+                let isDragging = false;
+                
+                const onDragStart = (clientX, clientY) => {
+                    isDragging = true;
+                    activeDragPropId = p.id;
+                    const rect = item.getBoundingClientRect();
+                    dragOffsetX = clientX - rect.left - (p.width / 2);
+                    dragOffsetY = clientY - rect.top - (p.height / 2);
+                    item.classList.add('scale-110', 'brightness-125', 'z-[999]');
+                };
+
+                const onDragMove = (clientX, clientY) => {
+                    if (!isDragging) return;
+                    const pgRect = propPlayground.getBoundingClientRect();
+                    let newLeft = clientX - pgRect.left - dragOffsetX - (p.width / 2);
+                    let newTop = clientY - pgRect.top - dragOffsetY - (p.height / 2);
+
+                    // Clamp position inside playground
+                    newLeft = Math.max(-p.width/2, Math.min(pgRect.width - p.width/2, newLeft));
+                    newTop = Math.max(-p.height/2, Math.min(pgRect.height - p.height/2, newTop));
+
+                    item.style.left = `${newLeft}px`;
+                    item.style.top = `${newTop}px`;
+                    
+                    const xRatio = Math.round(((newLeft + p.width/2) / pgRect.width) * 100) / 100;
+                    const yRatio = Math.round(((newTop + p.height/2) / pgRect.height) * 100) / 100;
+                    
+                    const label = item.querySelector('div');
+                    if (label) {
+                        label.textContent = `${p.name} (${xRatio}, ${yRatio})`;
+                    }
+                };
+
+                const onDragEnd = async (clientX, clientY) => {
+                    if (!isDragging) return;
+                    isDragging = false;
+                    item.classList.remove('scale-110', 'brightness-125', 'z-[999]');
+                    
+                    const pgRect = propPlayground.getBoundingClientRect();
+                    const finalLeft = parseFloat(item.style.left) + p.width / 2;
+                    const finalTop = parseFloat(item.style.top) + p.height / 2;
+                    
+                    const xRatio = Math.max(0.0, Math.min(1.0, Math.round((finalLeft / pgRect.width) * 100) / 100));
+                    const yRatio = Math.max(0.0, Math.min(1.0, Math.round((finalTop / pgRect.height) * 100) / 100));
+
+                    // Update form values if this prop is currently being edited
+                    if (propIdInput.value === p.id) {
+                        propXRatioInput.value = xRatio;
+                        propYRatioInput.value = yRatio;
+                    }
+
+                    // Auto-save coordinate to Supabase Edge Function!
+                    try {
+                        const { data, error } = await supabase.functions.invoke(API_FUNCTION_NAME, {
+                            body: {
+                                action: 'admin-update-prop',
+                                payload: {
+                                    lineUserId,
+                                    id: p.id,
+                                    name: p.name,
+                                    image_url: p.image_url,
+                                    x_ratio: xRatio,
+                                    y_ratio: yRatio,
+                                    width: p.width,
+                                    height: p.height,
+                                    collision_radius: p.collision_radius
+                                }
+                            }
+                        });
+                        if (error) throw error;
+                        if (data.error) throw new Error(data.error);
+                        
+                        // Update local data
+                        p.x_ratio = xRatio;
+                        p.y_ratio = yRatio;
+                        renderPropsGrid();
+                    } catch (err) {
+                        console.error("Failed to auto-save prop coordinates:", err);
+                    }
+                };
+
+                // Mouse events
+                item.addEventListener('mousedown', (e) => {
+                    e.preventDefault();
+                    onDragStart(e.clientX, e.clientY);
+                    
+                    const onMouseMove = (moveEvent) => {
+                        onDragMove(moveEvent.clientX, moveEvent.clientY);
+                    };
+                    
+                    const onMouseUp = (upEvent) => {
+                        document.removeEventListener('mousemove', onMouseMove);
+                        document.removeEventListener('mouseup', onMouseUp);
+                        onDragEnd(upEvent.clientX, upEvent.clientY);
+                    };
+                    
+                    document.addEventListener('mousemove', onMouseMove);
+                    document.addEventListener('mouseup', onMouseUp);
+                });
+
+                // Touch events
+                item.addEventListener('touchstart', (e) => {
+                    const touch = e.touches[0];
+                    onDragStart(touch.clientX, touch.clientY);
+                    
+                    const onTouchMove = (moveEvent) => {
+                        const t = moveEvent.touches[0];
+                        onDragMove(t.clientX, t.clientY);
+                    };
+                    
+                    const onTouchEnd = (endEvent) => {
+                        document.removeEventListener('touchmove', onTouchMove);
+                        document.removeEventListener('touchend', onTouchEnd);
+                        const lastTouch = endEvent.changedTouches[0];
+                        onDragEnd(lastTouch.clientX, lastTouch.clientY);
+                    };
+                    
+                    document.addEventListener('touchmove', onTouchMove);
+                    document.addEventListener('touchend', onTouchEnd);
+                });
+
+                propPlayground.appendChild(item);
+            });
+        }
+
+        window.addEventListener('load', async () => {
+            const configLoaded = await loadConfig();
+            if (!configLoaded) return;
+
+            initializeSupabase();
+            if (!supabase) return;
+
+            const isAdmin = await initializeLiffAndAuth();
+
+            if (isAdmin) {
+                await fetchAllQueues(false);
+                await fetchShopName();
+                setInterval(() => fetchAllQueues(true), POLLING_INTERVAL_MS);
+
+                adminContent.style.opacity = 1;
+
+                queueListEl.addEventListener('click', handleListClick);
+                btnCallNext.addEventListener('click', handleCallNext);
+                btnClearAll.addEventListener('click', handleClearAll);
+                btnSaveShopName.addEventListener('click', handleSaveShopName);
+
+                // Wire up prop buttons
+                btnAddPropTrigger.addEventListener('click', () => {
+                    formProp.classList.remove('hidden');
+                    propFormTitle.textContent = "เพิ่มวัตถุใหม่";
+                    propIdInput.value = "";
+                    propNameInput.value = "";
+                    propUrlInput.value = "";
+                    propXRatioInput.value = "0.5";
+                    propYRatioInput.value = "0.5";
+                    propWidthInput.value = "40";
+                    propHeightInput.value = "40";
+                    propCollisionInput.value = "20";
+                    propNameInput.focus();
+                });
+
+                btnCancelProp.addEventListener('click', () => {
+                    formProp.classList.add('hidden');
+                });
+
+                formProp.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const id = propIdInput.value;
+                    const name = propNameInput.value;
+                    const image_url = propUrlInput.value;
+                    const x_ratio = parseFloat(propXRatioInput.value) || 0.5;
+                    const y_ratio = parseFloat(propYRatioInput.value) || 0.5;
+                    const width = parseInt(propWidthInput.value) || 40;
+                    const height = parseInt(propHeightInput.value) || 40;
+                    const collision_radius = parseFloat(propCollisionInput.value) || 20;
+
+                    showLoading("กำลังบันทึกข้อมูล...");
+                    try {
+                        if (id) {
+                            const { data, error } = await supabase.functions.invoke(API_FUNCTION_NAME, {
+                                body: {
+                                    action: 'admin-update-prop',
+                                    payload: { lineUserId, id, name, image_url, x_ratio, y_ratio, width, height, collision_radius }
+                                }
+                            });
+                            if (error) throw error;
+                            if (data.error) throw new Error(data.error);
+                            Swal.fire('สำเร็จ!', 'แก้ไขข้อมูลวัตถุตกแต่งแล้ว', 'success');
+                        } else {
+                            const { data, error } = await supabase.functions.invoke(API_FUNCTION_NAME, {
+                                body: {
+                                    action: 'admin-add-prop',
+                                    payload: { lineUserId, name, image_url, x_ratio, y_ratio, width, height, collision_radius }
+                                }
+                            });
+                            if (error) throw error;
+                            if (data.error) throw new Error(data.error);
+                            Swal.fire('สำเร็จ!', 'เพิ่มวัตถุตกแต่งใหม่แล้ว', 'success');
+                        }
+                        formProp.classList.add('hidden');
+                        await fetchProps();
+                    } catch (err) {
+                        console.error("Save prop error:", err);
+                        showError("ผิดพลาด", "ไม่สามารถบันทึกวัตถุได้: " + err.message);
+                    } finally {
+                        hideLoading();
+                    }
+                });
+
+                propsGrid.addEventListener('click', async (e) => {
+                    const editBtn = e.target.closest('.btn-edit-prop');
+                    const deleteBtn = e.target.closest('.btn-delete-prop');
+
+                    if (editBtn) {
+                        const id = editBtn.dataset.id;
+                        const prop = props.find(p => p.id === id);
+                        if (prop) {
+                            formProp.classList.remove('hidden');
+                            propFormTitle.textContent = "แก้ไขข้อมูลวัตถุตกแต่ง";
+                            propIdInput.value = prop.id;
+                            propNameInput.value = prop.name;
+                            propUrlInput.value = prop.image_url;
+                            propXRatioInput.value = prop.x_ratio;
+                            propYRatioInput.value = prop.y_ratio;
+                            propWidthInput.value = prop.width;
+                            propHeightInput.value = prop.height;
+                            propCollisionInput.value = prop.collision_radius;
+                            propNameInput.focus();
+                        }
+                    } else if (deleteBtn) {
+                        const id = deleteBtn.dataset.id;
+                        const result = await Swal.fire({
+                            title: 'ยืนยันการลบวัตถุตกแต่งนี้?',
+                            text: "วัตถุตกแต่งนี้จะถูกนำออกจากบอร์ดแสดงผลทันที",
+                            icon: 'warning',
+                            showCancelButton: true,
+                            confirmButtonText: 'ใช่, ลบเลย',
+                            cancelButtonText: 'ยกเลิก',
+                            confirmButtonColor: '#d33',
+                        });
+
+                        if (result.isConfirmed) {
+                            showLoading("กำลังลบวัตถุตกแต่ง...");
+                            try {
+                                const { data, error } = await supabase.functions.invoke(API_FUNCTION_NAME, {
+                                    body: {
+                                        action: 'admin-delete-prop',
+                                        payload: { lineUserId, id }
+                                    }
+                                });
+                                if (error) throw error;
+                                if (data.error) throw new Error(data.error);
+                                Swal.fire('สำเร็จ!', 'ลบวัตถุตกแต่งเรียบร้อยแล้ว', 'success');
+                                await fetchProps();
+                            } catch (err) {
+                                showError("ผิดพลาด", "ไม่สามารถลบวัตถุได้: " + err.message);
+                            } finally {
+                                hideLoading();
+                            }
+                        }
+                    }
+                });
+            }
+        });
+    </script>
+</body>
+</html>

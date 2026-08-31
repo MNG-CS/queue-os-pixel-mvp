@@ -1,0 +1,17 @@
+# Secrets / local config - ห้ามขึ้น git เด็ดขาด
+web/config.json
+
+# OS / editor junk
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Supabase local dev (ถ้ามีใช้ supabase CLI ในเครื่อง)
+supabase/.branches
+supabase/.temp
+
+# Node (เผื่ออนาคตเพิ่ม build tooling)
+node_modules/
+.env
+.env.local

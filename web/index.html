@@ -1,0 +1,1122 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NextQ - ระบบจองคิวออนไลน์</title>
+
+
+    <link id="favicon" rel="icon" href="https://cdn-icons-png.flaticon.com/128/2879/2879476.png">
+    <link id="apple-touch-icon" rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/128/2879/2879476.png">
+    <meta name="description" content="NextQ LINE Mini App Booking" />
+    <meta name="author" content="iton5" />
+    <meta property="og:title" content="NextQ LINE-iton5-thailand" />
+    <meta property="og:description" content="NextQ LINE-iton5-thailand" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://botstickerlth.iton5.com" />
+    <meta property="og:image" content="https://cdn-icons-png.flaticon.com/128/2879/2879476.png" />
+    <link rel="icon" href="https://cdn-icons-png.flaticon.com/128/2879/2879476.png">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Sarabun:wght@300;400;600;700&display=swap"
+        rel="stylesheet">
+
+    <style>
+        :root {
+            --color-bg-dark: #2a1f35;
+            --color-bg-mid: #3f2f4d;
+            --color-bg-light: #564266;
+            --color-accent: #f0e68c;
+            --color-accent-hover: #e6db74;
+            --color-text-light: #f5f5f7;
+            --color-text-muted: #bdaec6;
+        }
+
+        body {
+            font-family: 'Outfit', 'Sarabun', sans-serif;
+            background: linear-gradient(135deg, var(--color-bg-dark), var(--color-bg-mid));
+            color: var(--color-text-light);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #loading-overlay {
+            position: fixed;
+            inset: 0;
+            background-color: rgba(42, 31, 53, 0.9);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            transition: opacity 0.3s ease;
+            backdrop-filter: blur(5px);
+        }
+
+        #loading-overlay .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid rgba(240, 230, 140, 0.1);
+            border-top: 4px solid var(--color-accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .swal2-popup {
+            background: var(--color-bg-dark) !important;
+            border: 1px solid var(--color-bg-light) !important;
+            border-radius: 1.5rem !important;
+        }
+
+        .swal2-title {
+            color: var(--color-accent) !important;
+        }
+
+        .swal2-html-container {
+            color: var(--color-text-light) !important;
+        }
+
+        .swal2-confirm-button {
+            background: var(--color-accent) !important;
+            color: var(--color-bg-dark) !important;
+            border-radius: 0.75rem !important;
+            font-weight: 600 !important;
+        }
+
+        .swal2-cancel-button {
+            background: #ff6b6b !important;
+            color: white !important;
+            border-radius: 0.75rem !important;
+            font-weight: 600 !important;
+        }
+
+        /* Walking Area Sandbox Style */
+        .walking-area {
+            position: relative;
+            background: linear-gradient(to bottom, #443552 0%, #352842 100%);
+            border: 2px solid #5a4b69;
+            border-radius: 1rem;
+            overflow: hidden;
+            box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.6);
+        }
+
+        .storefront-facade {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 45px;
+            background-color: #5d4870;
+            border-bottom: 4px solid #f0e68c;
+            z-index: 10;
+        }
+
+        .store-door {
+            position: absolute;
+            bottom: -4px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 36px;
+            height: 28px;
+            background-color: #2a1f35;
+            border: 2px solid #bdaec6;
+            border-bottom: none;
+            border-radius: 4px 4px 0 0;
+        }
+
+        .store-sign {
+            position: absolute;
+            top: 6px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #f0e68c;
+            color: #2a1f35;
+            padding: 1px 12px;
+            font-size: 10px;
+            font-weight: 800;
+            border-radius: 2px;
+            text-transform: uppercase;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .character-sprite-card {
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .character-sprite-card.selected {
+            border-color: var(--color-accent);
+            background-color: rgba(240, 230, 140, 0.1);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(240, 230, 140, 0.15);
+        }
+
+        /* Sprite Animation Styles */
+        .sprite-preview {
+            width: 48px;
+            height: 48px;
+            background-repeat: no-repeat;
+            image-rendering: pixelated;
+        }
+
+        .char-tag {
+            background-color: rgba(0, 0, 0, 0.65);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            pointer-events: none;
+            white-space: nowrap;
+        }
+
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.1);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--color-bg-light);
+            border-radius: 3px;
+        }
+    </style>
+</head>
+
+<body class="p-4 max-w-md mx-auto">
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay">
+        <div class="spinner mb-4"></div>
+        <p id="loading-text" class="text-sm font-semibold text-[var(--color-accent)]">กำลังเริ่มต้นระบบ...</p>
+    </div>
+
+    <!-- Header Section -->
+    <header class="flex items-center justify-between mb-6">
+        <div class="flex items-center space-x-3">
+            <div
+                class="w-10 h-10 rounded-full border border-[var(--color-accent)] overflow-hidden bg-black/20 flex items-center justify-center">
+                <span id="shop-logo" class="text-xl font-bold text-[var(--color-accent)]">Q</span>
+            </div>
+            <div>
+                <h1 id="shop-name-header" class="text-lg font-bold tracking-tight text-white leading-tight">NextQ Shop
+                </h1>
+                <p class="text-xs text-[var(--color-text-muted)]">จองคิวออนไลน์อัจฉริยะ</p>
+            </div>
+        </div>
+        <div id="profile-container"
+            class="hidden flex items-center space-x-2 bg-black/20 px-2 py-1 rounded-full border border-white/5">
+            <span id="user-display-name"
+                class="text-xs font-semibold text-[var(--color-text-light)] max-w-[80px] truncate">...</span>
+            <img id="user-pic" class="w-6 h-6 rounded-full border border-white/20" src="" alt="Profile">
+        </div>
+    </header>
+
+    <main class="flex-grow flex flex-col justify-center">
+        <!-- BOOKING SCREEN -->
+        <div id="screen-booking" class="hidden space-y-5">
+            <div class="bg-black/20 border border-white/5 p-5 rounded-2xl space-y-4 backdrop-blur-sm">
+                <h2 class="text-xl font-extrabold text-[var(--color-accent)]">ลงทะเบียนจองคิว</h2>
+                <p class="text-xs text-[var(--color-text-muted)] leading-relaxed">กรุณากรอกชื่อที่ต้องการให้แสดงผล
+                    และเลือกตัวละครสำหรับเดินบริเวณพื้นที่จำลองหน้าร้าน</p>
+
+                <!-- Custom Name -->
+                <div class="space-y-1.5">
+                    <label for="custom-name" class="block text-xs font-semibold text-gray-300">ชื่อของคุณ</label>
+                    <input type="text" id="custom-name" maxlength="15" required placeholder="เช่น สมชาย, พี่เอี้ยง"
+                        class="w-full bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-[var(--color-accent)] text-sm transition-all">
+                </div>
+
+                <!-- Character Selector Grid -->
+                <div class="space-y-2">
+                    <label class="block text-xs font-semibold text-gray-300">เลือกตัวละคร Pixel ของคุณ</label>
+                    <div id="character-selector-grid" class="grid grid-cols-2 gap-3 max-h-[220px] overflow-y-auto pr-1">
+                        <!-- Injected dynamically -->
+                    </div>
+                </div>
+
+                <!-- Action Button -->
+                <button id="btn-submit-booking"
+                    class="w-full bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)] text-[var(--color-bg-dark)] py-3.5 rounded-xl font-bold transition-all shadow-lg hover:shadow-[var(--color-accent)]/10 text-sm mt-2">
+                    ยืนยันจองคิว
+                </button>
+            </div>
+        </div>
+
+        <!-- STATUS / TICKET SCREEN -->
+        <div id="screen-status" class="hidden space-y-5">
+            <!-- Ticket Info Card -->
+            <div
+                class="bg-black/20 border border-white/5 p-5 rounded-2xl space-y-4 backdrop-blur-sm relative overflow-hidden">
+                <div
+                    class="absolute top-0 right-0 w-24 h-24 bg-[var(--color-accent)]/5 rounded-full blur-xl pointer-events-none">
+                </div>
+
+                <div class="flex justify-between items-start border-b border-white/10 pb-4">
+                    <div>
+                        <p class="text-xs text-[var(--color-text-muted)] font-semibold uppercase tracking-wider">
+                            หมายเลขคิวของคุณ</p>
+                        <h2 id="ticket-number" class="text-5xl font-black text-[var(--color-accent)] mt-1">Q-...</h2>
+                    </div>
+                    <div class="text-right">
+                        <span id="ticket-status-badge"
+                            class="inline-block bg-[var(--color-accent)]/10 text-[var(--color-accent)] border border-[var(--color-accent)]/20 px-2.5 py-1 rounded-md text-xs font-bold">
+                            กำลังรอคิว
+                        </span>
+                        <p id="ticket-time" class="text-[10px] text-[var(--color-text-muted)] mt-1.5">จองเมื่อ --:--</p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4 text-center py-2">
+                    <div class="bg-black/15 p-3 rounded-xl border border-white/5">
+                        <p class="text-xs text-[var(--color-text-muted)]">คิวปัจจุบันที่กำลังเรียก</p>
+                        <p id="current-serving-queue" class="text-2xl font-extrabold text-white mt-1">...</p>
+                    </div>
+                    <div id="waiting-position-box" class="bg-black/15 p-3 rounded-xl border border-white/5">
+                        <p class="text-xs text-[var(--color-text-muted)]">จำนวนคิวที่รอก่อนหน้า</p>
+                        <p id="waiting-count-before" class="text-2xl font-extrabold text-[var(--color-accent)] mt-1">...
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Virtual Walkway Area -->
+            <div class="space-y-2">
+                <div class="flex justify-between items-center px-1">
+                    <h3 class="text-xs font-bold text-gray-300">จำลองบริเวณหน้าร้าน</h3>
+                    <span class="text-[10px] text-[var(--color-text-muted)]">คุณคือตัวละครที่มีกรอบสีทอง</span>
+                </div>
+                <div id="storefront-container" class="walking-area w-full h-[180px] relative">
+                    <!-- 1. Dark interior bg behind character -->
+                    <div class="store-door-bg"
+                        style="position: absolute; top: 20px; left: 50%; transform: translateX(-50%); width: 36px; height: 28px; background-color: #150d1d; z-index: 2; border-radius: 4px 4px 0 0;">
+                    </div>
+
+                    <!-- Entrance mat visual on sidewalk -->
+                    <div class="store-entrance-mat pointer-events-none"
+                        style="position: absolute; top: 45px; left: 50%; transform: translateX(-50%); width: 44px; height: 10px; background: #a84a60; border: 1px solid #5a1e2f; border-bottom: none; border-radius: 2px 2px 0 0; z-index: 2; display: flex; align-items: center; justify-content: center; font-size: 6px; color: #f0e68c; font-weight: 800; text-shadow: 0 0.5px 1px rgba(0,0,0,0.5);">
+                        IN</div>
+
+                    <!-- 2. Characters & Dynamic Props Layer -->
+                    <div id="walkway-characters-layer" class="w-full h-full absolute inset-0" style="z-index: 3;"></div>
+
+                    <!-- 3. Facade in front of characters -->
+                    <div class="storefront-facade"
+                        style="z-index: 4; position: absolute; top: 0; left: 0; width: 100%; height: 45px; background-color: #5d4870; border-bottom: 4px solid #f0e68c;">
+                        <div id="shop-name-facade-sign" class="store-sign">NextQ Shop</div>
+                        <!-- Door frame only (no solid background so characters behind are visible!) -->
+                        <div class="store-door-frame"
+                            style="position: absolute; bottom: -4px; left: 50%; transform: translateX(-50%); width: 36px; height: 28px; border: 2px solid #bdaec6; border-bottom: none; border-radius: 4px 4px 0 0;">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cancel Button -->
+            <button id="btn-cancel-queue"
+                class="w-full bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 py-3 rounded-xl font-semibold transition-all text-xs">
+                ยกเลิกการจองคิวนี้
+            </button>
+        </div>
+    </main>
+
+    <footer class="mt-8 text-center text-[10px] text-[var(--color-text-muted)]">
+        <p>© 2026 NextQ. พัฒนาด้วยความปลอดภัยและความเสถียร</p>
+    </footer>
+
+    <script type="module">
+        let SUPABASE_URL = "";
+        let SUPABASE_KEY = "";
+        let USER_LIFF_ID = "";
+        const API_FUNCTION_NAME = "api";
+        const POLLING_INTERVAL_MS = 3000;
+
+        let supabase = null;
+        let lineUserId = null;
+        let lineDisplayName = "";
+        let linePictureUrl = "";
+        let charactersList = [];
+        let selectedCharacterId = null;
+        let pollingIntervalId = null;
+        let myQueueData = null;
+
+        // Visual Walkway variables
+        let walkwayCharacters = {}; // queueId -> Character object
+        let characterSpriteInterval = null;
+        let canvasWidth = 340;
+        let canvasHeight = 180;
+        let dynamicProps = [];
+        let dbProps = [];
+
+        const loadingOverlay = document.getElementById("loading-overlay");
+        const loadingText = document.getElementById("loading-text");
+        const screenBooking = document.getElementById("screen-booking");
+        const screenStatus = document.getElementById("screen-status");
+
+        const profileContainer = document.getElementById("profile-container");
+        const userDisplayNameEl = document.getElementById("user-display-name");
+        const userPicEl = document.getElementById("user-pic");
+
+        const customNameInput = document.getElementById("custom-name");
+        const charSelectorGrid = document.getElementById("character-selector-grid");
+        const btnSubmitBooking = document.getElementById("btn-submit-booking");
+
+        const ticketNumberEl = document.getElementById("ticket-number");
+        const ticketStatusBadge = document.getElementById("ticket-status-badge");
+        const ticketTimeEl = document.getElementById("ticket-time");
+        const currentServingQueueEl = document.getElementById("current-serving-queue");
+        const waitingCountBeforeEl = document.getElementById("waiting-count-before");
+        const btnCancelQueue = document.getElementById("btn-cancel-queue");
+
+        const walkwayLayer = document.getElementById("walkway-characters-layer");
+
+        function showLoading(message) {
+            loadingText.textContent = message;
+            loadingOverlay.style.display = 'flex';
+            loadingOverlay.style.opacity = 1;
+        }
+
+        function hideLoading() {
+            loadingOverlay.style.opacity = 0;
+            setTimeout(() => { loadingOverlay.style.display = 'none'; }, 300);
+        }
+
+        function showError(title, text) {
+            Swal.fire({ icon: 'error', title: title, text: text });
+        }
+
+        function showToast(message, icon = 'info') {
+            Swal.fire({
+                toast: true,
+                position: 'top-end',
+                showConfirmButton: false,
+                timer: 3000,
+                timerProgressBar: true,
+                icon: icon,
+                title: message,
+                background: '#2a1f35',
+                color: '#f5f5f7',
+                customClass: {
+                    popup: 'border border-[#564266]'
+                }
+            });
+        }
+
+        async function loadConfig() {
+            try {
+                const response = await fetch('./config.json');
+                const config = await response.json();
+                SUPABASE_URL = config.SUPABASE_URL;
+                SUPABASE_KEY = config.SUPABASE_KEY;
+                USER_LIFF_ID = config.USER_LIFF_ID;
+                return true;
+            } catch (err) {
+                console.error("Error loading config:", err);
+                showError("Config Error", "ไม่สามารถโหลดไฟล์ config.json ได้");
+                return false;
+            }
+        }
+
+        function initializeSupabase() {
+            try {
+                supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+            } catch (error) {
+                console.error('Supabase Init Error:', error);
+                showError('Supabase Error', 'ไม่สามารถเชื่อมต่อฐานข้อมูลได้');
+            }
+        }
+
+        async function initializeLiffAndAuth() {
+            try {
+                showLoading("กำลังเข้าสู่ระบบ LINE...");
+                await liff.init({ liffId: USER_LIFF_ID, withLoginOnExternalBrowser: true });
+                await liff.ready;
+                if (!liff.isLoggedIn()) {
+                    liff.login({ redirectUri: window.location.href });
+                    return false;
+                }
+
+                const profile = await liff.getProfile();
+                lineUserId = profile.userId;
+                lineDisplayName = profile.displayName;
+                linePictureUrl = profile.pictureUrl;
+
+                userDisplayNameEl.textContent = lineDisplayName;
+                userPicEl.src = linePictureUrl || "https://developers.line.biz/media/line-mini-app/LINE_spinner_light.svg";
+                profileContainer.classList.remove("hidden");
+                customNameInput.value = lineDisplayName;
+
+                // Check LINE friendship status
+                try {
+                    const friendship = await liff.getFriendship();
+
+                    if (!friendship.friendFlag) {
+                        // 2. เรียกหน้าต่าง requestFriendship (ต้องครอบ try-catch ป้องกัน API ล้มเหลวในบางอุปกรณ์)
+                        if (typeof liff.requestFriendship === 'function') {
+                            await liff.requestFriendship();
+                        }
+
+                        // 3. เช็กสถานะอีกรอบหลังจากผู้ใช้ปิดหน้าต่าง
+                        const verifyFriendship = await liff.getFriendship();
+                        if (verifyFriendship.friendFlag) {
+                            showToast('ขอบคุณที่เพิ่มเราเป็นเพื่อนครับ!', 'success');
+                        } else {
+                            showToast('คุณยังไม่ได้เพิ่มเราเป็นเพื่อน (อาจอัปเดตข้อมูลไม่ได้)', 'warning');
+                        }
+                    }
+                } catch (err) {
+                    console.warn("Friendship check error:", err);
+                }
+
+                return true;
+            } catch (error) {
+                console.error('LIFF Init Error:', error);
+                showError('LIFF Init Error', 'ไม่สามารถเชื่อมต่อ LINE ได้: ' + error.message);
+                return false;
+            }
+        }
+
+        async function fetchCharacters() {
+            try {
+                const { data, error } = await supabase
+                    .from('characters')
+                    .select('*')
+                    .order('created_at', { ascending: true });
+                if (error) throw error;
+                charactersList = data || [];
+                renderCharacterSelector();
+            } catch (error) {
+                console.error('Fetch Characters Error:', error);
+                showError('Database Error', 'ไม่สามารถโหลดข้อมูลตัวละครได้');
+            }
+        }
+
+        function renderCharacterSelector() {
+            charSelectorGrid.innerHTML = '';
+            charactersList.forEach((char, index) => {
+                const card = document.createElement('div');
+                card.className = `character-sprite-card bg-black/30 border border-white/10 rounded-xl p-3 flex flex-col items-center justify-center text-center space-y-2 ${index === 0 ? 'selected' : ''}`;
+                card.dataset.id = char.id;
+
+                if (index === 0) {
+                    selectedCharacterId = char.id;
+                }
+
+                card.innerHTML = `
+                    <div class="sprite-preview relative" id="preview-selector-${char.id}" style="background-image: url('${char.sprite_url}'); background-size: ${char.cols * 100}% ${char.rows * 100}%; filter: ${char.css_filter || 'none'};"></div>
+                    <span class="text-xs font-bold text-white leading-tight">${char.name}</span>
+                `;
+
+                card.addEventListener('click', () => {
+                    document.querySelectorAll('.character-sprite-card').forEach(c => c.classList.remove('selected'));
+                    card.classList.add('selected');
+                    selectedCharacterId = char.id;
+                });
+
+                charSelectorGrid.appendChild(card);
+            });
+
+            startSelectorAnimations();
+        }
+
+        function startSelectorAnimations() {
+            let frame = 0;
+            if (characterSpriteInterval) clearInterval(characterSpriteInterval);
+
+            characterSpriteInterval = setInterval(() => {
+                frame = (frame + 1) % 4;
+                charactersList.forEach(char => {
+                    const el = document.getElementById(`preview-selector-${char.id}`);
+                    if (el) {
+                        const cols = char.cols || 4;
+                        const curFrame = frame % cols;
+                        const xPercent = cols > 1 ? (curFrame / (cols - 1)) * 100 : 0;
+                        el.style.backgroundPosition = `${xPercent}% 0%`; // Face down walking
+                    }
+                });
+            }, 250);
+        }
+
+        function updateShopName(shopName) {
+            const name = shopName || "NextQ Shop";
+
+            // 1. Update logo text with the first letter
+            const logoEl = document.getElementById('shop-logo');
+            if (logoEl) {
+                logoEl.textContent = name.trim().charAt(0).toUpperCase();
+            }
+
+            // 2. Update the main header title
+            const headerTitleEl = document.getElementById('shop-name-header');
+            if (headerTitleEl && headerTitleEl.textContent !== name) {
+                headerTitleEl.textContent = name;
+            }
+
+            // 3. Update the storefront banner sign text
+            const storefrontSignEl = document.getElementById('shop-name-facade-sign');
+            if (storefrontSignEl && storefrontSignEl.textContent !== name) {
+                storefrontSignEl.textContent = name;
+            }
+        }
+
+        async function checkMyQueueStatus() {
+            if (!supabase) return;
+            try {
+                const { data, error } = await supabase.functions.invoke(API_FUNCTION_NAME, {
+                    body: {
+                        action: 'get-my-queue',
+                        payload: { lineUserId: lineUserId }
+                    }
+                });
+                if (error) throw error;
+                if (data.error) throw new Error(data.error);
+
+                myQueueData = data.queue;
+                const currentServing = data.currentServing ? data.currentServing.current_serving_number : 0;
+                const shopName = data.currentServing ? data.currentServing.shop_name : "NextQ Shop";
+
+                updateShopName(shopName);
+
+                if (myQueueData) {
+                    // Has queue
+                    showScreenStatus(myQueueData, currentServing);
+                    // Start polling
+                    if (!pollingIntervalId) {
+                        pollingIntervalId = setInterval(pollQueueUpdates, POLLING_INTERVAL_MS);
+                    }
+                } else {
+                    // No queue
+                    showScreenBooking();
+                    if (pollingIntervalId) {
+                        clearInterval(pollingIntervalId);
+                        pollingIntervalId = null;
+                    }
+                }
+            } catch (err) {
+                console.error("Check queue status error:", err);
+            }
+        }
+
+        async function pollQueueUpdates() {
+            try {
+                const { data, error } = await supabase.functions.invoke(API_FUNCTION_NAME, {
+                    body: {
+                        action: 'get-my-queue',
+                        payload: { lineUserId: lineUserId }
+                    }
+                });
+                if (error) throw error;
+
+                const q = data.queue;
+                const currentServing = data.currentServing ? data.currentServing.current_serving_number : 0;
+                const shopName = data.currentServing ? data.currentServing.shop_name : "NextQ Shop";
+
+                updateShopName(shopName);
+
+                if (!q) {
+                    // Cancelled or cleared by admin
+                    myQueueData = null;
+                    showScreenBooking();
+                    clearInterval(pollingIntervalId);
+                    pollingIntervalId = null;
+                    return;
+                }
+
+                myQueueData = q;
+                updateStatusScreenValues(q, currentServing);
+
+                // Fetch other waiting queues for storefront
+                await fetchAndSyncStorefrontCharacters();
+
+            } catch (error) {
+                console.error("Polling queue updates error:", error);
+            }
+        }
+
+        function showScreenBooking() {
+            screenStatus.classList.add("hidden");
+            screenBooking.classList.remove("hidden");
+            clearWalkway();
+        }
+
+        function showScreenStatus(q, currentServing) {
+            screenBooking.classList.add("hidden");
+            screenStatus.classList.remove("hidden");
+            updateStatusScreenValues(q, currentServing);
+            fetchAndSyncStorefrontCharacters();
+        }
+
+        function updateStatusScreenValues(q, currentServing) {
+            ticketNumberEl.textContent = `Q.${q.queue_number}`;
+            currentServingQueueEl.textContent = currentServing || "0";
+
+            // Format time
+            const date = new Date(q.created_at);
+            const hours = date.getHours().toString().padStart(2, '0');
+            const minutes = date.getMinutes().toString().padStart(2, '0');
+            ticketTimeEl.textContent = `จองเมื่อ ${hours}:${minutes} น.`;
+
+            if (q.status === 'CALLED') {
+                ticketStatusBadge.textContent = 'ถึงคิวของคุณแล้ว!';
+                ticketStatusBadge.className = "inline-block bg-green-500/10 text-green-400 border border-green-500/20 px-2.5 py-1 rounded-md text-xs font-bold animate-pulse";
+                waitingCountBeforeEl.textContent = "0";
+                document.getElementById('waiting-position-box').classList.add('opacity-50');
+            } else {
+                ticketStatusBadge.textContent = 'กำลังรอคิว';
+                ticketStatusBadge.className = "inline-block bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 px-2.5 py-1 rounded-md text-xs font-bold";
+                document.getElementById('waiting-position-box').classList.remove('opacity-50');
+
+                // Estimate position
+                if (q.queue_number > currentServing) {
+                    waitingCountBeforeEl.textContent = Math.max(0, q.queue_number - currentServing - 1);
+                } else {
+                    waitingCountBeforeEl.textContent = "0";
+                }
+            }
+        }
+
+        async function handleBookingSubmit() {
+            const customName = customNameInput.value.trim();
+            if (!customName) {
+                showError("ผิดพลาด", "กรุณากรอกชื่อของคุณ");
+                return;
+            }
+
+            if (!selectedCharacterId) {
+                showError("ผิดพลาด", "กรุณาเลือกตัวละคร Pixel");
+                return;
+            }
+
+            showLoading("กำลังบันทึกคิว...");
+            try {
+                const { data, error } = await supabase.functions.invoke(API_FUNCTION_NAME, {
+                    body: {
+                        action: 'request-queue',
+                        payload: {
+                            lineUserId: lineUserId,
+                            displayName: lineDisplayName,
+                            pictureUrl: linePictureUrl,
+                            customName: customName,
+                            characterId: selectedCharacterId
+                        }
+                    }
+                });
+
+                if (error) throw error;
+                if (data.error) throw new Error(data.error);
+
+                Swal.fire({
+                    icon: 'success',
+                    title: 'จองคิวสำเร็จ!',
+                    text: `หมายเลขคิวของคุณคือ Q.${data.newQueue.queue_number}`,
+                    confirmButtonText: 'ตกลง'
+                });
+
+                await checkMyQueueStatus();
+
+            } catch (err) {
+                showError("ผิดพลาด", err.message || "ไม่สามารถจองคิวได้");
+            } finally {
+                hideLoading();
+            }
+        }
+
+        async function handleCancelQueue() {
+            const result = await Swal.fire({
+                title: 'ยืนยันการยกเลิกคิว?',
+                text: "หากยกเลิกแล้วจะไม่สามารถกู้คืนคิวเดิมได้",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'ยืนยัน, ยกเลิกคิว',
+                cancelButtonText: 'ย้อนกลับ'
+            });
+
+            if (!result.isConfirmed) return;
+
+            showLoading("กำลังยกเลิกคิว...");
+            try {
+                const { data, error } = await supabase.functions.invoke(API_FUNCTION_NAME, {
+                    body: {
+                        action: 'cancel-my-queue',
+                        payload: { lineUserId: lineUserId }
+                    }
+                });
+
+                if (error) throw error;
+                if (data.error) throw new Error(data.error);
+
+                Swal.fire('สำเร็จ!', 'ยกเลิกคิวของคุณแล้ว', 'success');
+                myQueueData = null;
+                showScreenBooking();
+
+            } catch (err) {
+                showError("ผิดพลาด", err.message || "ไม่สามารถยกเลิกคิวได้");
+            } finally {
+                hideLoading();
+            }
+        }
+
+        // --- Storefront Visual Sandbox Walkway Logic ---
+        class VirtualCharacter {
+            constructor(queue, characterDetails, isMe = false) {
+                this.id = queue.id;
+                this.name = queue.display_name;
+                this.queueNum = queue.queue_number;
+                this.status = queue.status;
+                this.isMe = isMe;
+
+                // Character sprites attributes
+                this.spriteUrl = characterDetails.sprite_url;
+                this.cols = characterDetails.cols || 4;
+                this.rows = characterDetails.rows || 4;
+                this.cssFilter = characterDetails.css_filter || 'none';
+                this.scale = parseFloat(characterDetails.scale) || 1.0;
+
+                // Physical properties
+                this.x = 20 + Math.random() * (canvasWidth - 40);
+                this.y = 55 + Math.random() * (canvasHeight - 95);
+                this.targetX = this.x;
+                this.targetY = this.y;
+
+                this.speed = 0.5 + Math.random() * 0.4;
+                this.width = 36; // rendered size
+                this.height = 36;
+
+                this.frame = 0;
+                this.direction = 0; // 0: down, 1: left, 2: right, 3: up
+                this.isMoving = false;
+                this.waitingTime = Math.random() * 3000;
+
+                this.createDomElement();
+                this.updateDomPosition();
+            }
+
+            createDomElement() {
+                this.dom = document.createElement('div');
+                this.dom.className = 'absolute transition-opacity duration-1000';
+                this.dom.style.width = `${this.width}px`;
+                this.dom.style.height = `${this.height}px`;
+                this.dom.style.zIndex = Math.floor(this.y);
+
+                // Highlight border if it's the current user's character
+                const highlightBorder = this.isMe ? 'border-2 border-yellow-400 rounded-md shadow-[0_0_8px_#f0e68c]' : '';
+                const tagTop = Math.round(this.height * (1 - this.scale) - 16);
+
+                this.dom.innerHTML = `
+                    <div class="char-tag absolute left-1/2 transform -translate-x-1/2 text-[8px] font-bold text-white px-1 py-0.5 rounded ${highlightBorder}" style="top: ${tagTop}px;">
+                        Q.${this.queueNum} ${this.name.substring(0, 6)}
+                    </div>
+                    <div class="sprite-el absolute inset-0" style="background-image: url('${this.spriteUrl}'); background-size: ${this.cols * 100}% ${this.rows * 100}%; background-repeat: no-repeat; filter: ${this.cssFilter}; image-rendering: pixelated;"></div>
+                `;
+
+                this.spriteEl = this.dom.querySelector('.sprite-el');
+                this.spriteEl.style.transform = `scale(${this.scale})`;
+                this.spriteEl.style.transformOrigin = 'bottom center';
+                walkwayLayer.appendChild(this.dom);
+            }
+
+            update(dt) {
+                if (this.isDestroying) {
+                    if (this.dom) {
+                        let curOpacity = parseFloat(this.dom.style.opacity);
+                        if (isNaN(curOpacity)) curOpacity = 1;
+                        curOpacity -= 0.05;
+                        this.dom.style.opacity = curOpacity;
+                        if (curOpacity <= 0) {
+                            if (this.dom) this.dom.remove();
+                            this.dom = null;
+                            return false; // remove from dictionary
+                        }
+                    } else {
+                        return false;
+                    }
+                    return true;
+                }
+
+                // If CALLED, walk into shop door (center storefront: x=canvasWidth/2, y=38)
+                if (this.status === 'CALLED') {
+                    const doorX = canvasWidth / 2;
+                    const doorY = 55;
+                    const counterY = 38;
+
+                    if (this.y > doorY + 2) {
+                        this.targetX = doorX;
+                        this.targetY = doorY;
+
+                        const dx = this.targetX - this.x;
+                        const dy = this.targetY - this.y;
+                        const dist = Math.hypot(dx, dy);
+
+                        this.isMoving = true;
+                        this.x += (dx / dist) * this.speed;
+                        this.y += (dy / dist) * this.speed;
+                        this.updateDirection(dx, dy);
+                    } else if (this.y > counterY) {
+                        this.isMoving = true;
+                        this.x = doorX;
+                        this.y -= this.speed * 0.5;
+                        this.direction = 2; // face up
+                    } else {
+                        this.isMoving = false;
+                        this.x = doorX;
+                        this.y = counterY;
+                        this.direction = 0; // face down (facing customers)
+                    }
+                } else {
+                    // WAITING: Wander around randomly
+                    if (this.isMoving) {
+                        const dx = this.targetX - this.x;
+                        const dy = this.targetY - this.y;
+                        const dist = Math.hypot(dx, dy);
+
+                        if (dist > 3) {
+                            this.x += (dx / dist) * this.speed;
+                            this.y += (dy / dist) * this.speed;
+                            this.updateDirection(dx, dy);
+                        } else {
+                            this.x = this.targetX;
+                            this.y = this.targetY;
+                            this.isMoving = false;
+                            this.waitingTime = 1000 + Math.random() * 4000; // Rest
+                        }
+                    } else {
+                        this.waitingTime -= dt;
+                        if (this.waitingTime <= 0) {
+                            // Select new destination
+                            this.targetX = 20 + Math.random() * (canvasWidth - 40);
+                            this.targetY = 55 + Math.random() * (canvasHeight - 95);
+                            this.isMoving = true;
+                        }
+                    }
+                }
+
+                // Steering repulsion/avoidance from dynamic props
+                if (typeof dynamicProps !== 'undefined' && dynamicProps.length > 0) {
+                    dynamicProps.forEach(prop => {
+                        const dx = this.x - prop.x;
+                        const dy = this.y - prop.y;
+                        const dist = Math.hypot(dx, dy);
+                        const minDist = 12 + prop.collisionRadius; // character radius is ~12px in index.html
+
+                        if (dist < minDist) {
+                            const overlap = minDist - dist;
+                            // Push away with a tiny noise nudge to prevent head-on stalls
+                            const pushX = ((dx / (dist || 1)) * overlap) * 0.8 + (Math.random() - 0.5) * 0.15;
+                            const pushY = ((dy / (dist || 1)) * overlap) * 0.8 + (Math.random() - 0.5) * 0.15;
+
+                            this.x += pushX;
+                            this.y += pushY;
+
+                            // If WAITING and near obstacle, small chance per frame to select new wander target
+                            if (this.status !== 'CALLED' && Math.random() < 0.02) {
+                                this.targetX = 20 + Math.random() * (canvasWidth - 40);
+                                this.targetY = 55 + Math.random() * (canvasHeight - 95);
+                            }
+                        }
+                    });
+                }
+
+                // Clamp within storefront walk area boundaries
+                this.x = Math.max(15, Math.min(canvasWidth - 15, this.x));
+                if (this.status !== 'CALLED' || this.y > 55) {
+                    this.y = Math.max(50, Math.min(canvasHeight - 20, this.y));
+                }
+
+                // Update frame animation
+                if (this.isMoving) {
+                    this.frame = (this.frame + 0.1) % this.cols;
+                } else {
+                    this.frame = 0; // Stand still frame
+                }
+
+                this.updateDomPosition();
+                return true;
+            }
+
+            updateDirection(dx, dy) {
+                if (Math.abs(dx) > Math.abs(dy)) {
+                    this.direction = dx > 0 ? 1 : 3; // 1: Right, 3: Left
+                } else {
+                    this.direction = dy > 0 ? 0 : 2; // 0: Down, 2: Up
+                }
+            }
+
+            updateDomPosition() {
+                if (!this.dom) return;
+                this.dom.style.left = `${this.x - this.width / 2}px`;
+                this.dom.style.top = `${this.y - this.height / 2}px`;
+                this.dom.style.zIndex = Math.floor(this.y);
+
+                if (this.spriteEl) {
+                    const colIdx = Math.floor(this.frame) % this.cols;
+                    const rowIdx = this.direction % this.rows;
+
+                    const xPercent = this.cols > 1 ? (colIdx / (this.cols - 1)) * 100 : 0;
+                    const yPercent = this.rows > 1 ? (rowIdx / (this.rows - 1)) * 100 : 0;
+
+                    this.spriteEl.style.backgroundPosition = `${xPercent}% ${yPercent}%`;
+                }
+            }
+
+            destroy() {
+                this.isDestroying = true;
+            }
+        }
+
+        async function fetchAndSyncStorefrontCharacters() {
+            if (!supabase) return;
+            try {
+                // Fetch dynamic props
+                const { data: propsData, error: propsError } = await supabase.from('props').select('*');
+                if (propsError) throw propsError;
+
+                const storefrontContainer = document.getElementById('storefront-container');
+                canvasWidth = storefrontContainer.clientWidth || 340;
+                canvasHeight = storefrontContainer.clientHeight || 180;
+
+                // Sync decorations
+                dynamicProps = (propsData || []).map(p => {
+                    const px_x = parseFloat(p.x_ratio) * canvasWidth;
+                    const px_y = parseFloat(p.y_ratio) * canvasHeight;
+                    return {
+                        id: p.id,
+                        name: p.name,
+                        imageUrl: p.image_url,
+                        x: px_x,
+                        y: px_y,
+                        width: Math.round((parseInt(p.width) || 40) * 0.75), // Scale down 0.75x for mobile storefront size
+                        height: Math.round((parseInt(p.height) || 40) * 0.75),
+                        collisionRadius: (parseFloat(p.collision_radius) || 20) * 0.75
+                    };
+                });
+
+                // Clear and render prop elements
+                document.querySelectorAll('.prop-el').forEach(el => el.remove());
+                dynamicProps.forEach(p => {
+                    const propDom = document.createElement('div');
+                    propDom.className = 'prop-el absolute';
+                    propDom.style.width = `${p.width}px`;
+                    propDom.style.height = `${p.height}px`;
+                    propDom.style.left = `${p.x - p.width / 2}px`;
+                    propDom.style.top = `${p.y - p.height / 2}px`;
+                    propDom.style.zIndex = Math.floor(p.y);
+                    propDom.style.backgroundImage = `url('${p.imageUrl}')`;
+                    propDom.style.backgroundSize = 'contain';
+                    propDom.style.backgroundPosition = 'center';
+                    propDom.style.backgroundRepeat = 'no-repeat';
+
+                    walkwayLayer.appendChild(propDom);
+                });
+
+                // Fetch all active queues (WAITING or CALLED)
+                const todayRange = getTodayUTCRange();
+                const { data: queues, error: qError } = await supabase
+                    .from('queues')
+                    .select('*, characters(*)')
+                    .in('status', ['WAITING', 'CALLED'])
+                    .gte('created_at', todayRange.start)
+                    .lte('created_at', todayRange.end)
+                    .order('queue_number', { ascending: true });
+
+                if (qError) throw qError;
+
+                // Sync characters
+                const activeIds = new Set();
+                (queues || []).forEach(q => {
+                    if (!q.characters) return; // skip if no character set
+                    activeIds.add(q.id);
+
+                    if (!walkwayCharacters[q.id]) {
+                        const isMe = q.line_user_id === lineUserId;
+                        walkwayCharacters[q.id] = new VirtualCharacter(q, q.characters, isMe);
+                    } else {
+                        // Update status (e.g. if transitioned to CALLED)
+                        walkwayCharacters[q.id].status = q.status;
+                    }
+                });
+
+                // Remove inactive characters
+                Object.keys(walkwayCharacters).forEach(id => {
+                    if (!activeIds.has(id)) {
+                        walkwayCharacters[id].destroy();
+                    }
+                });
+
+            } catch (err) {
+                console.error("Sync storefront characters error:", err);
+            }
+        }
+
+        function clearWalkway() {
+            Object.values(walkwayCharacters).forEach(c => c.destroy());
+        }
+
+        function getTodayUTCRange() {
+            const today = new Date();
+            const year = today.getUTCFullYear();
+            const month = (today.getUTCMonth() + 1).toString().padStart(2, '0');
+            const day = today.getUTCDate().toString().padStart(2, '0');
+            const dateString = `${year}-${month}-${day}`;
+            return {
+                start: `${dateString}T00:00:00.000Z`,
+                end: `${dateString}T23:59:59.999Z`
+            };
+        }
+
+        // Canvas update loop (runs 60fps)
+        let lastTime = 0;
+        function gameLoop(time) {
+            const dt = lastTime === 0 ? 16 : Math.min(100, time - lastTime);
+            lastTime = time;
+
+            Object.keys(walkwayCharacters).forEach(id => {
+                const active = walkwayCharacters[id].update(dt);
+                if (!active) {
+                    delete walkwayCharacters[id];
+                }
+            });
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Initialize Booking Page
+        window.addEventListener('load', async () => {
+            const configLoaded = await loadConfig();
+            if (!configLoaded) return;
+
+            initializeSupabase();
+            if (!supabase) return;
+
+            const loggedIn = await initializeLiffAndAuth();
+            if (!loggedIn) return;
+
+            await fetchCharacters();
+            await checkMyQueueStatus();
+
+            hideLoading();
+
+            btnSubmitBooking.addEventListener('click', handleBookingSubmit);
+            btnCancelQueue.addEventListener('click', handleCancelQueue);
+
+            // Start visual sandbox game loop
+            requestAnimationFrame(gameLoop);
+        });
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,930 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NextQ Monitor - บอร์ดแสดงคิวหน้าร้าน</title>
+    <meta name="description" content="NextQ LINE Mini App Monitor Dashboard" />
+    <meta name="author" content="Antigravity" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;900&family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --color-bg-dark: #201727;
+            --color-bg-mid: #32243d;
+            --color-bg-light: #4c375c;
+            --color-accent: #f0e68c;
+            --color-accent-dim: #d4c767;
+            --color-text-light: #f5f5f7;
+            --color-text-muted: #af9fb9;
+            --font-main: 'Outfit', 'Sarabun', sans-serif;
+        }
+
+        html, body {
+            height: 100%;
+            margin: 0;
+            overflow: hidden;
+            background-color: var(--color-bg-dark);
+            font-family: var(--font-main);
+            color: var(--color-text-light);
+        }
+
+        .main-layout {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        @media (min-width: 768px) {
+            .main-layout {
+                flex-direction: row;
+            }
+        }
+
+        /* STOREFRONT WALKING AREA */
+        #storefront-section {
+            width: 100%;
+            height: 50%;
+            position: relative;
+            background: linear-gradient(to bottom, #3b2b4a 0%, #22182c 100%);
+            border-bottom: 4px solid var(--color-bg-light);
+            overflow: hidden;
+            box-shadow: inset 0 -10px 30px rgba(0,0,0,0.5);
+        }
+
+        @media (min-width: 768px) {
+            #storefront-section {
+                width: 60%;
+                height: 100%;
+                border-bottom: none;
+                border-right: 4px solid var(--color-bg-light);
+            }
+        }
+
+        .storefront-facade {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 120px;
+            background: linear-gradient(
+                90deg,
+                #554166 0%,
+                #554166 calc(50% - 35px),
+                transparent calc(50% - 35px),
+                transparent calc(50% + 35px),
+                #554166 calc(50% + 35px),
+                #554166 100%
+            );
+            z-index: 10;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.4);
+        }
+
+        .store-base-border {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 8px;
+            background: linear-gradient(
+                90deg,
+                #8e70aa 0%,
+                #8e70aa calc(50% - 35px),
+                transparent calc(50% - 35px),
+                transparent calc(50% + 35px),
+                #8e70aa calc(50% + 35px),
+                #8e70aa 100%
+            );
+        }
+
+        .store-awning {
+            position: absolute;
+            bottom: 0;
+            height: 35px;
+            background: repeating-linear-gradient(
+                90deg,
+                #f0e68c,
+                #f0e68c 30px,
+                #3a2b47 30px,
+                #3a2b47 60px
+            );
+            border-bottom: 4px solid #d4c767;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+
+        .store-sign {
+            position: absolute;
+            top: 25px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #2a1c36;
+            border: 3px solid #f0e68c;
+            color: #f0e68c;
+            padding: 4px 28px;
+            font-size: 16px;
+            font-weight: 900;
+            border-radius: 6px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5), 0 0 15px rgba(240, 230, 140, 0.3);
+            text-shadow: 0 0 5px rgba(240, 230, 140, 0.5);
+        }
+
+        .store-door {
+            position: absolute;
+            bottom: -8px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 70px;
+            height: 60px;
+            background-color: #1a0f24;
+            border: 4px solid #8e70aa;
+            border-bottom: none;
+            border-radius: 8px 8px 0 0;
+            z-index: 11;
+        }
+
+        .store-window {
+            position: absolute;
+            bottom: 15px;
+            width: 80px;
+            height: 45px;
+            background-color: rgba(26, 15, 36, 0.85);
+            border: 3px solid #8e70aa;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .store-window::after {
+            content: '';
+            width: 80%;
+            height: 4px;
+            background-color: rgba(240, 230, 140, 0.2);
+            transform: rotate(-15deg);
+        }
+
+        .window-left { left: 10%; }
+        .window-right { right: 10%; }
+
+        /* Sidewalk path tiling using CSS */
+        .storefront-sidewalk {
+            position: absolute;
+            top: 120px;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background-color: #2b1f36;
+            background-image: 
+                repeating-linear-gradient(90deg, transparent, transparent 40px, rgba(0,0,0,0.15) 40px, rgba(0,0,0,0.15) 42px),
+                repeating-linear-gradient(0deg, transparent, transparent 40px, rgba(0,0,0,0.15) 40px, rgba(0,0,0,0.15) 42px);
+            z-index: 1;
+        }
+
+        /* Sidewalk Decor Objects */
+        .sidewalk-decor {
+            position: absolute;
+            image-rendering: pixelated;
+            z-index: 5;
+        }
+
+        @keyframes floatUpAndDown {
+            0%, 100% { transform: translate(-50%, 0); }
+            50% { transform: translate(-50%, -4px); }
+        }
+
+        .bench {
+            bottom: 40px;
+            left: 15%;
+            width: 55px;
+            height: 25px;
+            background-color: #553e66;
+            border: 3px solid #22182c;
+            border-radius: 4px;
+        }
+
+        .lamp-post {
+            bottom: 70px;
+            right: 15%;
+            width: 8px;
+            height: 90px;
+            background-color: #3b2b4a;
+            border: 2px solid #1a0f24;
+            border-radius: 2px;
+        }
+
+        .lamp-light {
+            position: absolute;
+            top: -15px;
+            left: -8px;
+            width: 24px;
+            height: 24px;
+            background-color: #f0e68c;
+            border: 2px solid #1a0f24;
+            border-radius: 50%;
+            box-shadow: 0 0 20px #f0e68c;
+        }
+
+        /* QUEUE DASHBOARD SIDEBAR */
+        #queue-section {
+            width: 100%;
+            height: 50%;
+            display: flex;
+            flex-direction: column;
+            background-color: var(--color-bg-dark);
+            z-index: 20;
+        }
+
+        @media (min-width: 768px) {
+            #queue-section {
+                width: 40%;
+                height: 100%;
+            }
+        }
+
+        #current-serving-box {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            background-color: rgba(0, 0, 0, 0.2);
+            border-bottom: 2px solid var(--color-bg-light);
+            padding: 1.5rem;
+        }
+
+        #current-serving-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--color-text-muted);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        #current-serving-number {
+            font-size: 7rem;
+            font-weight: 900;
+            color: var(--color-accent);
+            line-height: 1.1;
+            text-shadow: 0 0 30px rgba(240, 230, 140, 0.2);
+            transition: all 0.3s ease;
+        }
+
+        @media (min-width: 768px) {
+            #current-serving-title { font-size: 1.8rem; }
+            #current-serving-number { font-size: 9rem; }
+        }
+
+        #waiting-list-box {
+            height: 45%;
+            min-height: 200px;
+            background-color: rgba(0, 0, 0, 0.35);
+            padding: 1.25rem 2rem;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        #waiting-list-title {
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: var(--color-text-light);
+            margin-bottom: 0.75rem;
+            border-left: 4px solid var(--color-accent);
+            padding-left: 0.5rem;
+            flex-shrink: 0;
+        }
+
+        #waiting-list {
+            flex-grow: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 0.6rem;
+        }
+
+        .waiting-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255,255,255,0.05);
+            padding: 0.65rem 1rem;
+            border-radius: 0.5rem;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .waiting-item-number {
+            font-size: 1.25rem;
+            font-weight: 800;
+            color: var(--color-accent);
+        }
+
+        .waiting-item-name {
+            font-size: 1.05rem;
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 180px;
+        }
+
+        /* Sprite styling inside sidewalk */
+        .sprite-el {
+            width: 48px;
+            height: 48px;
+            background-repeat: no-repeat;
+            image-rendering: pixelated;
+        }
+
+        .char-tag {
+            background-color: rgba(16, 11, 21, 0.85);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #ffffff;
+            font-size: 9px;
+            font-weight: bold;
+            padding: 2px 6px;
+            border-radius: 4px;
+            white-space: nowrap;
+            pointer-events: none;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        #status-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            padding: 0.5rem 1rem;
+            background-color: rgba(0, 0, 0, 0.4);
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            font-size: 0.75rem;
+            color: var(--color-text-muted);
+            border-top: 1px solid rgba(255,255,255,0.05);
+            z-index: 100;
+        }
+
+        #connection-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 0.5rem;
+            background-color: #f87171;
+            transition: background-color 0.5s ease;
+        }
+
+        #connection-dot.connected {
+            background-color: #34d399;
+            box-shadow: 0 0 8px #34d399;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.7); }
+            50% { box-shadow: 0 0 0 6px rgba(52, 211, 153, 0); }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="main-layout">
+        <!-- LEFT SCREEN: VISUAL SHOP WALKWAY -->
+        <section id="storefront-section">
+            <!-- 1. Dark interior bg behind character (stands inside shop) -->
+            <div class="store-door-bg" style="position: absolute; top: 60px; left: 50%; transform: translateX(-50%); width: 70px; height: 68px; background-color: #150d1d; z-index: 2; border-radius: 8px 8px 0 0;"></div>
+            
+            <div class="storefront-sidewalk" style="z-index: 1;">
+                <!-- Entrance Mat visual -->
+                <div class="store-entrance-mat pointer-events-none" style="position: absolute; top: 0px; left: 50%; transform: translateX(-50%); width: 90px; height: 22px; background: repeating-linear-gradient(45deg, #a84a60, #a84a60 10px, #8c3b4e 10px, #8c3b4e 20px); border: 2px solid #5a1e2f; border-radius: 4px; z-index: 2; display: flex; align-items: center; justify-content: center; font-size: 9px; color: #f0e68c; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.3); text-shadow: 0 1px 2px rgba(0,0,0,0.5);">
+                    ENTRANCE
+                </div>
+            </div>
+            
+            <!-- 2. Characters & Dynamic Props Layer -->
+            <div id="walkway-characters-layer" class="absolute inset-0 pointer-events-none" style="z-index: 3;"></div>
+            
+            <!-- 3. Shop Facade in front of characters -->
+            <div class="storefront-facade" style="z-index: 4;">
+                <div class="store-sign">NextQ Store</div>
+                <div class="store-awning" style="left: 0; width: calc(50% - 35px);"></div>
+                <div class="store-awning" style="right: 0; width: calc(50% - 35px);"></div>
+                <div class="store-base-border"></div>
+                <div class="store-window window-left"></div>
+                <div class="store-window window-right"></div>
+                <!-- Entrance Indicator Sign -->
+                <div class="entrance-indicator" style="position: absolute; bottom: 62px; left: 50%; transform: translateX(-50%); background-color: #1a0f24; border: 2px solid #8e70aa; padding: 2px 8px; border-radius: 4px; font-size: 9px; font-weight: 800; color: #a8ffb2; box-shadow: 0 0 8px rgba(168,255,178,0.3); animation: floatUpAndDown 1.5s ease-in-out infinite;">
+                    ENTRANCE ↓
+                </div>
+                <!-- Door frame only (no background so characters inside are visible!) -->
+                <div class="store-door-frame" style="position: absolute; bottom: -8px; left: 50%; transform: translateX(-50%); width: 70px; height: 60px; border: 4px solid #8e70aa; border-bottom: none; border-radius: 8px 8px 0 0; pointer-events: none;"></div>
+            </div>
+        </section>
+
+        <!-- RIGHT SCREEN: QUEUE DETAILS -->
+        <section id="queue-section">
+            <div id="current-serving-box">
+                <h1 id="current-serving-title">คิวที่กำลังให้บริการ</h1>
+                <div id="current-serving-number">...</div>
+            </div>
+
+            <div id="waiting-list-box">
+                <h2 id="waiting-list-title">คิวรอถัดไป 5 ลำดับ</h2>
+                <div id="waiting-list">
+                    <p class="text-gray-400 text-center my-auto">ไม่มีคิวรอ</p>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- Status Bar -->
+    <div id="status-bar">
+        <div class="flex items-center">
+            <div id="connection-dot"></div>
+            <span id="connection-text">กำลังเชื่อมต่อ...</span>
+        </div>
+    </div>
+
+    <script type="module">
+        let SUPABASE_URL = "";
+        let SUPABASE_KEY = "";
+        const POLLING_INTERVAL_MS = 3000;
+
+        let supabase = null;
+        let walkwayCharacters = {}; // queueId -> Character Object
+        let canvasWidth = 0;
+        let canvasHeight = 0;
+        let dynamicProps = [];
+        let dbProps = [];
+
+        const currentServingNumberEl = document.getElementById('current-serving-number');
+        const waitingListEl = document.getElementById('waiting-list');
+        const connectionDot = document.getElementById('connection-dot');
+        const connectionText = document.getElementById('connection-text');
+        const walkwayLayer = document.getElementById('walkway-characters-layer');
+        const storefrontSection = document.getElementById('storefront-section');
+
+        async function loadConfig() {
+            try {
+                const response = await fetch('./config.json');
+                const config = await response.json();
+                SUPABASE_URL = config.SUPABASE_URL;
+                SUPABASE_KEY = config.SUPABASE_KEY;
+                return true;
+            } catch (err) {
+                console.error("Error loading config:", err);
+                connectionText.textContent = "Config Error!";
+                return false;
+            }
+        }
+
+        function initializeSupabase() {
+            try {
+                supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+            } catch (error) {
+                console.error('Supabase Init Error:', error);
+                connectionText.textContent = "Supabase Fail!";
+            }
+        }
+
+        function updateServingNumber(number) {
+            const numStr = number || "0";
+            if (currentServingNumberEl.textContent !== numStr) {
+                currentServingNumberEl.style.transform = 'scale(0.8)';
+                currentServingNumberEl.style.opacity = '0.3';
+                setTimeout(() => {
+                    currentServingNumberEl.textContent = numStr;
+                    currentServingNumberEl.style.transform = 'scale(1)';
+                    currentServingNumberEl.style.opacity = '1';
+                }, 150);
+            }
+        }
+
+        function updateWaitingList(queues = []) {
+            waitingListEl.innerHTML = '';
+            if (queues.length === 0) {
+                waitingListEl.innerHTML = `<p class="text-gray-400 text-center my-auto">ไม่มีคิวรอ</p>`;
+                return;
+            }
+
+            queues.forEach(q => {
+                const item = document.createElement('div');
+                item.className = 'waiting-item';
+
+                const displayName = q.display_name.length > 15 ? q.display_name.substring(0, 15) + '...' : q.display_name;
+
+                item.innerHTML = `
+                    <span class="waiting-item-number">Q. ${q.queue_number}</span>
+                    <span class="waiting-item-name">${displayName}</span>
+                `;
+                waitingListEl.appendChild(item);
+            });
+        }
+
+        function setConnectionStatus(status) {
+            if (status === 'CONNECTED') {
+                connectionDot.classList.add('connected');
+                connectionText.textContent = 'เชื่อมต่อเสร็จสมบูรณ์';
+            } else if (status === 'ERROR') {
+                connectionDot.classList.remove('connected');
+                connectionDot.style.backgroundColor = '#f87171'; // Red
+                connectionText.textContent = 'ตัดการเชื่อมต่อ';
+            }
+        }
+
+        function getTodayUTCRange() {
+            const today = new Date();
+            const year = today.getUTCFullYear();
+            const month = (today.getUTCMonth() + 1).toString().padStart(2, '0');
+            const day = today.getUTCDate().toString().padStart(2, '0');
+            const dateString = `${year}-${month}-${day}`;
+            return {
+                start: `${dateString}T00:00:00.000Z`,
+                end: `${dateString}T23:59:59.999Z`
+            };
+        }
+
+        // --- Storefront Character Movement Simulation ---
+        class VirtualCharacter {
+            constructor(queue, characterDetails) {
+                this.id = queue.id;
+                this.name = queue.display_name;
+                this.queueNum = queue.queue_number;
+                this.status = queue.status;
+                
+                // Sprite Sheet configuration
+                this.spriteUrl = characterDetails.sprite_url;
+                this.cols = characterDetails.cols || 4;
+                this.rows = characterDetails.rows || 4;
+                this.cssFilter = characterDetails.css_filter || 'none';
+                this.scale = parseFloat(characterDetails.scale) || 1.0;
+
+                // Physics position
+                this.width = 44; // rendered width
+                this.height = 44; // rendered height
+                
+                this.x = 40 + Math.random() * (canvasWidth - 80);
+                this.y = 130 + Math.random() * (canvasHeight - 170);
+                this.targetX = this.x;
+                this.targetY = this.y;
+                
+                this.speed = 0.6 + Math.random() * 0.5;
+                this.frame = 0;
+                this.direction = 0; // 0: down, 1: left, 2: right, 3: up
+                this.isMoving = false;
+                this.waitingTime = Math.random() * 3000;
+                
+                this.createDomElement();
+                this.updateDomPosition();
+            }
+
+            createDomElement() {
+                this.dom = document.createElement('div');
+                this.dom.className = 'absolute transition-opacity duration-1000';
+                this.dom.style.width = `${this.width}px`;
+                this.dom.style.height = `${this.height}px`;
+                
+                const tagTop = Math.round(this.height * (1 - this.scale) - 18);
+                this.dom.innerHTML = `
+                    <div class="char-tag absolute left-1/2 transform -translate-x-1/2" style="top: ${tagTop}px;">
+                        Q.${this.queueNum} ${this.name.substring(0, 10)}
+                    </div>
+                    <div class="sprite-el absolute inset-0" style="background-image: url('${this.spriteUrl}'); background-size: ${this.cols * 100}% ${this.rows * 100}%; background-repeat: no-repeat; filter: ${this.cssFilter};"></div>
+                `;
+
+                this.spriteEl = this.dom.querySelector('.sprite-el');
+                this.spriteEl.style.transform = `scale(${this.scale})`;
+                this.spriteEl.style.transformOrigin = 'bottom center';
+                walkwayLayer.appendChild(this.dom);
+            }
+
+            update(dt) {
+                if (this.isDestroying) {
+                    if (this.dom) {
+                        let curOpacity = parseFloat(this.dom.style.opacity);
+                        if (isNaN(curOpacity)) curOpacity = 1;
+                        curOpacity -= 0.05;
+                        this.dom.style.opacity = curOpacity;
+                        if (curOpacity <= 0) {
+                            if (this.dom) this.dom.remove();
+                            this.dom = null;
+                            return false; // remove from dictionary
+                        }
+                    } else {
+                        return false;
+                    }
+                    return true;
+                }
+
+                // If CALLED, walk into shop door (middle coordinates: x = canvasWidth/2, y = 115)
+                if (this.status === 'CALLED') {
+                    const doorX = canvasWidth / 2;
+                    const doorY = 125;
+                    const counterY = 95;
+                    
+                    if (this.y > doorY + 2) {
+                        // We are in the street, walk to the door x, and door y
+                        this.targetX = doorX;
+                        this.targetY = doorY;
+                        
+                        const dx = this.targetX - this.x;
+                        const dy = this.targetY - this.y;
+                        const dist = Math.hypot(dx, dy);
+                        
+                        this.isMoving = true;
+                        this.x += (dx / dist) * this.speed;
+                        this.y += (dy / dist) * this.speed;
+                        this.updateDirection(dx, dy);
+                    } else if (this.y > counterY) {
+                        // We are at the door, walk straight up into the counter inside
+                        this.isMoving = true;
+                        this.x = doorX; // align exactly
+                        this.y -= this.speed * 0.5; // walk up slower
+                        this.direction = 2; // face up
+                    } else {
+                        // We reached the counter! Stand still and face down
+                        this.isMoving = false;
+                        this.x = doorX;
+                        this.y = counterY;
+                        this.direction = 0; // face down (facing customers)
+                    }
+                } else {
+                    // WAITING: Wander around randomly on the sidewalk pavement
+                    if (this.isMoving) {
+                        const dx = this.targetX - this.x;
+                        const dy = this.targetY - this.y;
+                        const dist = Math.hypot(dx, dy);
+                        
+                        if (dist > 4) {
+                            this.x += (dx / dist) * this.speed;
+                            this.y += (dy / dist) * this.speed;
+                            this.updateDirection(dx, dy);
+                        } else {
+                            this.x = this.targetX;
+                            this.y = this.targetY;
+                            this.isMoving = false;
+                            this.waitingTime = 1000 + Math.random() * 4000;
+                        }
+                    } else {
+                        this.waitingTime -= dt;
+                        if (this.waitingTime <= 0) {
+                            // Find new wander spot
+                            this.targetX = 40 + Math.random() * (canvasWidth - 80);
+                            this.targetY = 135 + Math.random() * (canvasHeight - 180);
+                            this.isMoving = true;
+                        }
+                    }
+                }
+
+                // Steering repulsion/avoidance from dynamic props
+                if (typeof dynamicProps !== 'undefined' && dynamicProps.length > 0) {
+                    dynamicProps.forEach(prop => {
+                        const dx = this.x - prop.x;
+                        const dy = this.y - prop.y;
+                        const dist = Math.hypot(dx, dy);
+                        const minDist = 16 + prop.collisionRadius; // character radius is ~16px
+                        
+                        if (dist < minDist) {
+                            const overlap = minDist - dist;
+                            // Push away with a tiny noise nudge to prevent head-on stalls
+                            const pushX = ((dx / (dist || 1)) * overlap) * 0.8 + (Math.random() - 0.5) * 0.15;
+                            const pushY = ((dy / (dist || 1)) * overlap) * 0.8 + (Math.random() - 0.5) * 0.15;
+                            
+                            this.x += pushX;
+                            this.y += pushY;
+                            
+                            // If WAITING and near obstacle, small chance per frame to select new wander target
+                            if (this.status !== 'CALLED' && Math.random() < 0.02) {
+                                this.targetX = 40 + Math.random() * (canvasWidth - 80);
+                                this.targetY = 135 + Math.random() * (canvasHeight - 180);
+                            }
+                        }
+                    });
+                }
+
+                // Clamp within storefront walk area boundaries
+                this.x = Math.max(20, Math.min(canvasWidth - 20, this.x));
+                if (this.status !== 'CALLED' || this.y > 125) {
+                    this.y = Math.max(130, Math.min(canvasHeight - 40, this.y));
+                }
+
+                // Update frame animation
+                if (this.isMoving) {
+                    this.frame = (this.frame + 0.1) % this.cols;
+                } else {
+                    this.frame = 0; // Stand still frame
+                }
+
+                this.updateDomPosition();
+                return true;
+            }
+
+            updateDirection(dx, dy) {
+                if (Math.abs(dx) > Math.abs(dy)) {
+                    this.direction = dx > 0 ? 1 : 3; // 1: Right, 3: Left
+                } else {
+                    this.direction = dy > 0 ? 0 : 2; // 0: Down, 2: Up
+                }
+            }
+
+            updateDomPosition() {
+                if (!this.dom) return;
+                this.dom.style.left = `${this.x - this.width/2}px`;
+                this.dom.style.top = `${this.y - this.height/2}px`;
+                this.dom.style.zIndex = Math.floor(this.y);
+
+                if (this.spriteEl) {
+                    const colIdx = Math.floor(this.frame) % this.cols;
+                    const rowIdx = this.direction % this.rows;
+                    
+                    const xPercent = this.cols > 1 ? (colIdx / (this.cols - 1)) * 100 : 0;
+                    const yPercent = this.rows > 1 ? (rowIdx / (this.rows - 1)) * 100 : 0;
+                    
+                    this.spriteEl.style.backgroundPosition = `${xPercent}% ${yPercent}%`;
+                }
+            }
+
+            destroy() {
+                this.isDestroying = true;
+            }
+        }
+
+        async function fetchCurrentData() {
+            if (!supabase) return;
+
+            try {
+                const { start, end } = getTodayUTCRange();
+
+                // 1. Fetch current serving number and shop name
+                const statusQuery = supabase
+                    .from('queue_service_status')
+                    .select('current_serving_number, shop_name')
+                    .eq('id', 1)
+                    .single();
+
+                // 2. Fetch all active queues (WAITING or CALLED) to render walking sprites
+                const activeQueuesQuery = supabase
+                    .from('queues')
+                    .select('*, characters(*)')
+                    .in('status', ['WAITING', 'CALLED'])
+                    .gte('created_at', start)
+                    .lte('created_at', end)
+                    .order('queue_number', { ascending: true });
+
+                // 3. Fetch all decoration props
+                const propsQuery = supabase
+                    .from('props')
+                    .select('*');
+
+                const [statusResult, activeResult, propsResult] = await Promise.all([statusQuery, activeQueuesQuery, propsQuery]);
+
+                if (statusResult.error) throw statusResult.error;
+                if (activeResult.error) throw activeResult.error;
+                if (propsResult.error) throw propsResult.error;
+
+                const currentServing = statusResult.data.current_serving_number;
+                const shopName = statusResult.data.shop_name || "NextQ Store";
+                const activeQueues = activeResult.data || [];
+                dbProps = propsResult.data || [];
+
+                // Update storefront banner sign text
+                const storeSignEl = document.querySelector('.store-sign');
+                if (storeSignEl && storeSignEl.textContent !== shopName) {
+                    storeSignEl.textContent = shopName;
+                }
+                
+                // Sync decorations
+                syncProps();
+
+                // Update right panel numbers and list
+                updateServingNumber(currentServing);
+                
+                // Show only WAITING queues in the waiting list panel (max 5)
+                const waitingQueues = activeQueues.filter(q => q.status === 'WAITING').slice(0, 5);
+                updateWaitingList(waitingQueues);
+
+                // Sync characters on walkway
+                const activeIds = new Set();
+                activeQueues.forEach(q => {
+                    if (!q.characters) return; // skip if character deleted/none
+                    activeIds.add(q.id);
+
+                    if (!walkwayCharacters[q.id]) {
+                        walkwayCharacters[q.id] = new VirtualCharacter(q, q.characters);
+                    } else {
+                        // Keep status updated
+                        walkwayCharacters[q.id].status = q.status;
+                    }
+                });
+
+                // Remove characters that are no longer active
+                Object.keys(walkwayCharacters).forEach(id => {
+                    if (!activeIds.has(id)) {
+                        walkwayCharacters[id].destroy();
+                    }
+                });
+
+                setConnectionStatus('CONNECTED');
+
+            } catch (error) {
+                console.error('Polling Error:', error);
+                setConnectionStatus('ERROR');
+            }
+        }
+
+        function syncProps() {
+            if (!supabase) return;
+            dynamicProps = dbProps.map(p => {
+                const px_x = parseFloat(p.x_ratio) * canvasWidth;
+                const px_y = parseFloat(p.y_ratio) * canvasHeight;
+                return {
+                    id: p.id,
+                    name: p.name,
+                    imageUrl: p.image_url,
+                    x: px_x,
+                    y: px_y,
+                    width: parseInt(p.width) || 40,
+                    height: parseInt(p.height) || 40,
+                    collisionRadius: parseFloat(p.collision_radius) || 20
+                };
+            });
+
+            // Remove old prop DOM elements
+            document.querySelectorAll('.prop-el').forEach(el => el.remove());
+
+            // Render new ones
+            dynamicProps.forEach(p => {
+                const propDom = document.createElement('div');
+                propDom.className = 'prop-el absolute';
+                propDom.style.width = `${p.width}px`;
+                propDom.style.height = `${p.height}px`;
+                propDom.style.left = `${p.x - p.width / 2}px`;
+                propDom.style.top = `${p.y - p.height / 2}px`;
+                propDom.style.zIndex = Math.floor(p.y);
+                propDom.style.backgroundImage = `url('${p.imageUrl}')`;
+                propDom.style.backgroundSize = 'contain';
+                propDom.style.backgroundPosition = 'center';
+                propDom.style.backgroundRepeat = 'no-repeat';
+                
+                walkwayLayer.appendChild(propDom);
+            });
+        }
+
+        // Handle canvas size resizing
+        function handleResize() {
+            canvasWidth = storefrontSection.clientWidth;
+            canvasHeight = storefrontSection.clientHeight;
+            syncProps();
+        }
+
+        // Main game loops
+        let lastTime = 0;
+        function updateLoop(time) {
+            const dt = lastTime === 0 ? 16 : Math.min(100, time - lastTime);
+            lastTime = time;
+
+            Object.keys(walkwayCharacters).forEach(id => {
+                const active = walkwayCharacters[id].update(dt);
+                if (!active) {
+                    delete walkwayCharacters[id];
+                }
+            });
+
+            requestAnimationFrame(updateLoop);
+        }
+
+        async function initialize() {
+            const configLoaded = await loadConfig();
+            if (!configLoaded) return;
+
+            initializeSupabase();
+            if (!supabase) return;
+
+            // Determine dimensions
+            handleResize();
+            window.addEventListener('resize', handleResize);
+
+            // Trigger immediate fetch
+            await fetchCurrentData();
+            
+            // Set polling interval
+            setInterval(fetchCurrentData, POLLING_INTERVAL_MS);
+
+            // Start animation loop
+            requestAnimationFrame(updateLoop);
+        }
+
+        window.addEventListener('load', initialize);
+    </script>
+</body>
+</html>
