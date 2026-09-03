@@ -531,6 +531,72 @@ async function handleAdminDeleteCharacter(payload: any) {
     });
 }
 
+async function handleAdminSetBackgroundTemplate(payload: any) {
+    const { lineUserId, template_id } = payload;
+    const supabase = createAdminClient();
+    if (!await verifyAdmin(lineUserId, supabase)) throw new Error('Unauthorized');
+
+    // ดึงข้อมูล template ที่เลือกมาก่อน
+    const { data: template, error: templateError } = await supabase
+        .from('background_templates')
+        .select('*')
+        .eq('id', template_id)
+        .single();
+    if (templateError) throw templateError;
+    if (!template) throw new Error('ไม่พบ template ที่เลือก');
+
+    // Copy ค่าจาก template มาเก็บใน shop_background (denormalized สำหรับ polling ที่เบา)
+    const { data, error } = await supabase.from('shop_background').update({
+        mode: 'template',
+        template_id: template.id,
+        image_url: template.image_url,
+        door_x_ratio: template.door_x_ratio,
+        door_y_ratio: template.door_y_ratio,
+        no_walk_zones: template.no_walk_zones,
+        updated_at: new Date().toISOString()
+    }).eq('id', 1).select().single();
+    if (error) throw error;
+
+    return new Response(JSON.stringify({
+        message: `เปลี่ยนพื้นหลังเป็น "${template.name}" แล้ว`,
+        shop_background: data
+    }), {
+        headers: {
+            ...corsHeaders,
+            'Content-Type': 'application/json'
+        }
+    });
+}
+
+async function handleAdminSetCustomBackground(payload: any) {
+    const { lineUserId, image_url, door_x_ratio, door_y_ratio } = payload;
+    const supabase = createAdminClient();
+    if (!await verifyAdmin(lineUserId, supabase)) throw new Error('Unauthorized');
+    if (!image_url) throw new Error('กรุณาระบุ URL ภาพพื้นหลัง');
+
+    const { data, error } = await supabase.from('shop_background').update({
+        mode: 'custom',
+        template_id: null,
+        image_url,
+        door_x_ratio: parseFloat(door_x_ratio) || 0.5,
+        door_y_ratio: parseFloat(door_y_ratio) || 0.365,
+        no_walk_zones: [], // โหมด custom ยังไม่รองรับเขตห้ามเดิน (ตั้งค่าเองได้ในเวอร์ชันถัดไป)
+        is_premium_unlocked: true,
+        updated_at: new Date().toISOString()
+    }).eq('id', 1).select().single();
+    if (error) throw error;
+
+    return new Response(JSON.stringify({
+        message: 'บันทึกพื้นหลังของคุณเองแล้ว',
+        shop_background: data
+    }), {
+        headers: {
+            ...corsHeaders,
+            'Content-Type': 'application/json'
+        }
+    });
+}
+
 async function handleAdminAddProp(payload: any) {
     const { lineUserId, name, image_url, x_ratio, y_ratio, width, height, collision_radius } = payload;
     const supabase = createAdminClient();
@@ -668,6 +734,10 @@ Deno.serve(async (req) => {
                 return await handleAdminDeleteProp(payload);
             case 'admin-update-shop-name':
                 return await handleAdminUpdateShopName(payload);
+            case 'admin-set-background-template':
+                return await handleAdminSetBackgroundTemplate(payload);
+            case 'admin-set-custom-background':
+                return await handleAdminSetCustomBackground(payload);
             default:
                 throw new Error(`Invalid action: ${action}`);
         }

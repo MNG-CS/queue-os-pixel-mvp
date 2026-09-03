@@ -401,6 +401,9 @@
     <div class="main-layout">
         <!-- LEFT SCREEN: VISUAL SHOP WALKWAY -->
         <section id="storefront-section">
+            <!-- 0. Template/Custom background image (เมื่อมีการตั้งค่าไว้) -->
+            <div id="storefront-bg-image" class="hidden absolute inset-0" style="z-index: 0; background-size: cover; background-position: center;"></div>
+
             <!-- 1. Dark interior bg behind character (stands inside shop) -->
             <div class="store-door-bg" style="position: absolute; top: 60px; left: 50%; transform: translateX(-50%); width: 70px; height: 68px; background-color: #150d1d; z-index: 2; border-radius: 8px 8px 0 0;"></div>
             
@@ -466,8 +469,13 @@
         let canvasHeight = 0;
         let dynamicProps = [];
         let dbProps = [];
+        let dbBackground = null;
+        let noWalkZonesPx = []; // [{x1,y1,x2,y2}] ในหน่วยพิกเซล คำนวณจาก ratio
+        let currentDoorX = 0;   // อัปเดตจาก shop_background หรือ fallback
+        let currentDoorY = 125; // ค่า default เดิม (fallback ถ้ายังไม่มีข้อมูลพื้นหลัง)
 
         const currentServingNumberEl = document.getElementById('current-serving-number');
+        const storefrontBgImageEl = document.getElementById('storefront-bg-image');
         const waitingListEl = document.getElementById('waiting-list');
         const connectionDot = document.getElementById('connection-dot');
         const connectionText = document.getElementById('connection-text');
@@ -555,6 +563,15 @@
         }
 
         // --- Storefront Character Movement Simulation ---
+        // ขอบเขตพื้นที่เดินเล่นได้ (responsive ตามขนาดจอ + ตำแหน่งประตูปัจจุบัน)
+        function getWanderBounds() {
+            const minX = canvasWidth * 0.05;
+            const maxX = canvasWidth * 0.95;
+            const minY = currentDoorY + 15;
+            const maxY = Math.max(minY + 40, canvasHeight - 20);
+            return { minX, maxX, minY, maxY };
+        }
+
         class VirtualCharacter {
             constructor(queue, characterDetails) {
                 this.id = queue.id;
@@ -573,8 +590,9 @@
                 this.width = 44; // rendered width
                 this.height = 44; // rendered height
                 
-                this.x = 40 + Math.random() * (canvasWidth - 80);
-                this.y = 130 + Math.random() * (canvasHeight - 170);
+                const spawnBounds = getWanderBounds();
+                this.x = spawnBounds.minX + Math.random() * (spawnBounds.maxX - spawnBounds.minX);
+                this.y = spawnBounds.minY + Math.random() * (spawnBounds.maxY - spawnBounds.minY);
                 this.targetX = this.x;
                 this.targetY = this.y;
                 
@@ -628,9 +646,9 @@
 
                 // If CALLED, walk into shop door (middle coordinates: x = canvasWidth/2, y = 115)
                 if (this.status === 'CALLED') {
-                    const doorX = canvasWidth / 2;
-                    const doorY = 125;
-                    const counterY = 95;
+                    const doorX = currentDoorX;
+                    const doorY = currentDoorY;
+                    const counterY = Math.max(10, currentDoorY - 30);
                     
                     if (this.y > doorY + 2) {
                         // We are in the street, walk to the door x, and door y
@@ -679,8 +697,9 @@
                         this.waitingTime -= dt;
                         if (this.waitingTime <= 0) {
                             // Find new wander spot
-                            this.targetX = 40 + Math.random() * (canvasWidth - 80);
-                            this.targetY = 135 + Math.random() * (canvasHeight - 180);
+                            const b = getWanderBounds();
+                            this.targetX = b.minX + Math.random() * (b.maxX - b.minX);
+                            this.targetY = b.minY + Math.random() * (b.maxY - b.minY);
                             this.isMoving = true;
                         }
                     }
@@ -705,17 +724,54 @@
                             
                             // If WAITING and near obstacle, small chance per frame to select new wander target
                             if (this.status !== 'CALLED' && Math.random() < 0.02) {
-                                this.targetX = 40 + Math.random() * (canvasWidth - 80);
-                                this.targetY = 135 + Math.random() * (canvasHeight - 180);
+                                const b = getWanderBounds();
+                                this.targetX = b.minX + Math.random() * (b.maxX - b.minX);
+                                this.targetY = b.minY + Math.random() * (b.maxY - b.minY);
+                            }
+                        }
+                    });
+                }
+
+                // Steering repulsion/avoidance จากเขตห้ามเดิน (no_walk_zones ของพื้นหลัง)
+                if (noWalkZonesPx.length > 0) {
+                    const charRadius = 16;
+                    noWalkZonesPx.forEach(zone => {
+                        // ขยายกรอบออกเล็กน้อยด้วยรัศมีตัวละคร กันไม่ให้เดินชิดขอบเกินไป
+                        const ex1 = zone.x1 - charRadius;
+                        const ey1 = zone.y1 - charRadius;
+                        const ex2 = zone.x2 + charRadius;
+                        const ey2 = zone.y2 + charRadius;
+
+                        if (this.x > ex1 && this.x < ex2 && this.y > ey1 && this.y < ey2) {
+                            // อยู่ในเขตห้ามเดิน -> ดันออกไปทางขอบที่ใกล้ที่สุด
+                            const distLeft = this.x - ex1;
+                            const distRight = ex2 - this.x;
+                            const distTop = this.y - ey1;
+                            const distBottom = ey2 - this.y;
+                            const minDist = Math.min(distLeft, distRight, distTop, distBottom);
+
+                            if (minDist === distLeft) this.x = ex1;
+                            else if (minDist === distRight) this.x = ex2;
+                            else if (minDist === distTop) this.y = ey1;
+                            else this.y = ey2;
+
+                            // สุ่มเป้าหมายใหม่เพื่อไม่ให้ค้างชนขอบซ้ำๆ
+                            if (this.status !== 'CALLED' && Math.random() < 0.05) {
+                                const b = getWanderBounds();
+                                this.targetX = b.minX + Math.random() * (b.maxX - b.minX);
+                                this.targetY = b.minY + Math.random() * (b.maxY - b.minY);
                             }
                         }
                     });
                 }
 
                 // Clamp within storefront walk area boundaries
-                this.x = Math.max(20, Math.min(canvasWidth - 20, this.x));
-                if (this.status !== 'CALLED' || this.y > 125) {
-                    this.y = Math.max(130, Math.min(canvasHeight - 40, this.y));
+                {
+                    const b = getWanderBounds();
+                    this.x = Math.max(b.minX, Math.min(b.maxX, this.x));
+                    if (this.status !== 'CALLED' || this.y > currentDoorY) {
+                        this.y = Math.max(b.minY, Math.min(canvasHeight - 20, this.y));
+                    }
                 }
 
                 // Update frame animation
@@ -786,11 +842,22 @@
                     .from('props')
                     .select('*');
 
-                const [statusResult, activeResult, propsResult] = await Promise.all([statusQuery, activeQueuesQuery, propsQuery]);
+                // 4. Fetch background settings (template หรือ custom)
+                const backgroundQuery = supabase
+                    .from('shop_background')
+                    .select('*')
+                    .eq('id', 1)
+                    .maybeSingle();
+
+                const [statusResult, activeResult, propsResult, backgroundResult] = await Promise.all([statusQuery, activeQueuesQuery, propsQuery, backgroundQuery]);
 
                 if (statusResult.error) throw statusResult.error;
                 if (activeResult.error) throw activeResult.error;
                 if (propsResult.error) throw propsResult.error;
+                if (backgroundResult.error) throw backgroundResult.error;
+
+                dbBackground = backgroundResult.data || null;
+                syncBackground();
 
                 const currentServing = statusResult.data.current_serving_number;
                 const shopName = statusResult.data.shop_name || "NextQ Store";
@@ -880,11 +947,50 @@
             });
         }
 
+        // แปลง no_walk_zones (ratio 0.0-1.0) เป็นพิกเซลจริงตามขนาดจอปัจจุบัน
+        function recomputeBackgroundGeometry() {
+            if (!dbBackground || !dbBackground.image_url) {
+                // ไม่มีข้อมูลพื้นหลัง (fallback ค่าดั้งเดิม)
+                currentDoorX = canvasWidth / 2;
+                currentDoorY = 125;
+                noWalkZonesPx = [];
+                return;
+            }
+            currentDoorX = (parseFloat(dbBackground.door_x_ratio) || 0.5) * canvasWidth;
+            currentDoorY = (parseFloat(dbBackground.door_y_ratio) || 0.365) * canvasHeight;
+
+            const zones = Array.isArray(dbBackground.no_walk_zones) ? dbBackground.no_walk_zones : [];
+            noWalkZonesPx = zones.map(z => ({
+                x1: z.x1 * canvasWidth,
+                y1: z.y1 * canvasHeight,
+                x2: z.x2 * canvasWidth,
+                y2: z.y2 * canvasHeight
+            }));
+        }
+
+        function syncBackground() {
+            const oldFacadeEls = document.querySelectorAll('.storefront-facade, .store-door-bg, .store-entrance-mat');
+
+            if (dbBackground && dbBackground.image_url) {
+                // มีการตั้งค่าพื้นหลัง (template หรือ custom) -> ใช้ภาพเต็มจอ ซ่อนของตกแต่งแบบเดิม
+                storefrontBgImageEl.style.backgroundImage = `url('${dbBackground.image_url}')`;
+                storefrontBgImageEl.classList.remove('hidden');
+                oldFacadeEls.forEach(el => el.style.display = 'none');
+            } else {
+                // ยังไม่มีข้อมูลพื้นหลัง -> ใช้ฉากวาดด้วย CSS แบบเดิม (fallback)
+                storefrontBgImageEl.classList.add('hidden');
+                oldFacadeEls.forEach(el => el.style.display = '');
+            }
+
+            recomputeBackgroundGeometry();
+        }
+
         // Handle canvas size resizing
         function handleResize() {
             canvasWidth = storefrontSection.clientWidth;
             canvasHeight = storefrontSection.clientHeight;
             syncProps();
+            recomputeBackgroundGeometry();
         }
 
         // Main game loops

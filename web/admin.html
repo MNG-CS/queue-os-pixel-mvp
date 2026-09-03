@@ -198,6 +198,7 @@
             <button id="tab-queues" class="flex-1 py-2 text-center rounded-md font-medium bg-[var(--color-accent)] text-[var(--color-bg-dark)] transition-all">จัดการคิว</button>
             <button id="tab-characters" class="flex-1 py-2 text-center rounded-md font-medium text-[var(--color-text-light)] hover:text-white transition-all">ตัวละคร Pixel</button>
             <button id="tab-props" class="flex-1 py-2 text-center rounded-md font-medium text-[var(--color-text-light)] hover:text-white transition-all">วัตถุตกแต่ง (Props)</button>
+            <button id="tab-background" class="flex-1 py-2 text-center rounded-md font-medium text-[var(--color-text-light)] hover:text-white transition-all">พื้นหลัง</button>
         </div>
 
         <!-- Panel Queues -->
@@ -383,6 +384,55 @@
                 <!-- Injected dynamically -->
             </div>
         </div>
+
+        <div id="panel-background" class="hidden bg-black/25 p-5 sm:p-6 rounded-xl border border-white/5 space-y-6">
+            <div class="border-b border-white/10 pb-4">
+                <h2 class="text-xl font-bold text-white">ตั้งค่าพื้นหลัง (Background)</h2>
+                <p class="text-sm text-[var(--color-text-mid)]">เลือก template สำเร็จรูป (ฟรี) หรืออัปโหลดพื้นหลังของคุณเอง (Premium)</p>
+            </div>
+
+            <!-- สถานะพื้นหลังปัจจุบัน -->
+            <div id="bg-current-status" class="bg-white/5 border border-[var(--color-accent)]/40 rounded-lg p-3 text-sm text-[var(--color-text-light)]">
+                กำลังโหลด...
+            </div>
+
+            <!-- โหมด B: เลือก Template สำเร็จรูป -->
+            <div>
+                <h3 class="text-md font-semibold text-[var(--color-accent)] mb-3">🖼️ Template สำเร็จรูป (ฟรี)</h3>
+                <div id="bg-templates-grid" class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <!-- Injected dynamically -->
+                </div>
+            </div>
+
+            <!-- โหมด A: อัปโหลดของตัวเอง (Premium) -->
+            <div class="border-t border-white/10 pt-6">
+                <h3 class="text-md font-semibold text-[var(--color-warning,#facc15)] mb-1">⭐ พื้นหลังของคุณเอง (Premium)</h3>
+                <p class="text-xs text-[var(--color-text-mid)] mb-3">อัปโหลดภาพขึ้น Supabase Storage ก่อน แล้ววาง URL ที่นี่ จากนั้นคลิกบนภาพเพื่อกำหนดตำแหน่งประตู</p>
+
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-300 mb-1">Image URL พื้นหลังของคุณ</label>
+                        <input type="url" id="bg-custom-url" placeholder="https://xxxxx.supabase.co/storage/v1/object/public/image/bg-custom.png" class="w-full bg-black/30 border border-white/10 rounded px-3 py-2 text-white focus:outline-none focus:border-[var(--color-accent)]">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-300 mb-1">คลิกบนภาพเพื่อกำหนดตำแหน่งประตู (จุดที่ตัวละครจะเดินไปยืนรอ)</label>
+                        <div id="bg-custom-preview-wrap" class="relative w-full bg-black/30 border border-white/10 rounded-lg overflow-hidden" style="aspect-ratio: 1586/992;">
+                            <img id="bg-custom-preview-img" src="" alt="" class="w-full h-full object-cover hidden">
+                            <div id="bg-custom-placeholder" class="absolute inset-0 flex items-center justify-center text-xs text-white/30">
+                                วาง URL ภาพด้านบนก่อน จะแสดง preview ที่นี่
+                            </div>
+                            <div id="bg-custom-door-marker" class="hidden absolute w-6 h-6 -ml-3 -mt-3 rounded-full border-2 border-yellow-400 bg-yellow-400/30 pointer-events-none"></div>
+                        </div>
+                        <p class="text-xs text-[var(--color-text-mid)] mt-1">ตำแหน่งประตูที่เลือก: <span id="bg-custom-door-text">ยังไม่ได้เลือก</span></p>
+                    </div>
+
+                    <div class="flex justify-end">
+                        <button id="btn-save-custom-bg" type="button" class="btn-admin btn-admin-call !m-0">บันทึกพื้นหลังของฉัน</button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </main>
 
     <script type="module">
@@ -431,6 +481,22 @@
         const btnCancelChar = document.getElementById('btn-cancel-char');
         const previewSprite = document.getElementById('char-preview-sprite');
         const charactersGrid = document.getElementById('characters-grid');
+
+        // Background elements
+        const tabBackground = document.getElementById('tab-background');
+        const panelBackground = document.getElementById('panel-background');
+        const bgCurrentStatus = document.getElementById('bg-current-status');
+        const bgTemplatesGrid = document.getElementById('bg-templates-grid');
+        const bgCustomUrlInput = document.getElementById('bg-custom-url');
+        const bgCustomPreviewWrap = document.getElementById('bg-custom-preview-wrap');
+        const bgCustomPreviewImg = document.getElementById('bg-custom-preview-img');
+        const bgCustomPlaceholder = document.getElementById('bg-custom-placeholder');
+        const bgCustomDoorMarker = document.getElementById('bg-custom-door-marker');
+        const bgCustomDoorText = document.getElementById('bg-custom-door-text');
+        const btnSaveCustomBg = document.getElementById('btn-save-custom-bg');
+        let backgroundTemplates = [];
+        let shopBackground = null;
+        let pendingDoorRatio = null; // {x, y} ที่ผู้ใช้เพิ่งคลิกเลือกบน preview
 
         // Props elements
         const tabProps = document.getElementById('tab-props');
@@ -972,33 +1038,194 @@
         });
 
         // Tab Switching
+        const ACTIVE_TAB_CLASS = "flex-1 py-2 text-center rounded-md font-medium bg-[var(--color-accent)] text-[var(--color-bg-dark)] transition-all";
+        const INACTIVE_TAB_CLASS = "flex-1 py-2 text-center rounded-md font-medium text-[var(--color-text-light)] hover:text-white transition-all";
+        const allTabs = [tabQueues, tabCharacters, tabProps, tabBackground];
+        const allPanels = [panelQueues, panelCharacters, panelProps, panelBackground];
+
+        function activateTab(activeTab, activePanel) {
+            allTabs.forEach(t => t.className = (t === activeTab) ? ACTIVE_TAB_CLASS : INACTIVE_TAB_CLASS);
+            allPanels.forEach(p => p.classList.toggle('hidden', p !== activePanel));
+        }
+
         tabQueues.addEventListener('click', () => {
-            tabQueues.className = "flex-1 py-2 text-center rounded-md font-medium bg-[var(--color-accent)] text-[var(--color-bg-dark)] transition-all";
-            tabCharacters.className = "flex-1 py-2 text-center rounded-md font-medium text-[var(--color-text-light)] hover:text-white transition-all";
-            tabProps.className = "flex-1 py-2 text-center rounded-md font-medium text-[var(--color-text-light)] hover:text-white transition-all";
-            panelQueues.classList.remove('hidden');
-            panelCharacters.classList.add('hidden');
-            panelProps.classList.add('hidden');
+            activateTab(tabQueues, panelQueues);
         });
 
         tabCharacters.addEventListener('click', () => {
-            tabCharacters.className = "flex-1 py-2 text-center rounded-md font-medium bg-[var(--color-accent)] text-[var(--color-bg-dark)] transition-all";
-            tabQueues.className = "flex-1 py-2 text-center rounded-md font-medium text-[var(--color-text-light)] hover:text-white transition-all";
-            tabProps.className = "flex-1 py-2 text-center rounded-md font-medium text-[var(--color-text-light)] hover:text-white transition-all";
-            panelQueues.classList.add('hidden');
-            panelCharacters.classList.remove('hidden');
-            panelProps.classList.add('hidden');
+            activateTab(tabCharacters, panelCharacters);
             fetchCharacters();
         });
 
         tabProps.addEventListener('click', () => {
-            tabProps.className = "flex-1 py-2 text-center rounded-md font-medium bg-[var(--color-accent)] text-[var(--color-bg-dark)] transition-all";
-            tabQueues.className = "flex-1 py-2 text-center rounded-md font-medium text-[var(--color-text-light)] hover:text-white transition-all";
-            tabCharacters.className = "flex-1 py-2 text-center rounded-md font-medium text-[var(--color-text-light)] hover:text-white transition-all";
-            panelQueues.classList.add('hidden');
-            panelCharacters.classList.add('hidden');
-            panelProps.classList.remove('hidden');
+            activateTab(tabProps, panelProps);
             fetchProps();
+        });
+
+        tabBackground.addEventListener('click', () => {
+            activateTab(tabBackground, panelBackground);
+            fetchBackgroundData();
+        });
+
+        // --- BACKGROUND SETTINGS LOGIC ---
+        async function fetchBackgroundData() {
+            try {
+                const [templatesRes, shopBgRes] = await Promise.all([
+                    supabase.from('background_templates').select('*').order('created_at', { ascending: true }),
+                    supabase.from('shop_background').select('*').eq('id', 1).single()
+                ]);
+                if (templatesRes.error) throw templatesRes.error;
+                if (shopBgRes.error) throw shopBgRes.error;
+
+                backgroundTemplates = templatesRes.data || [];
+                shopBackground = shopBgRes.data;
+
+                renderBackgroundStatus();
+                renderBackgroundTemplatesGrid();
+                renderCustomBackgroundPreview();
+            } catch (error) {
+                console.error("Error fetching background data:", error);
+                showError("ผิดพลาด", "ไม่สามารถโหลดข้อมูลพื้นหลังได้: " + error.message);
+            }
+        }
+
+        function renderBackgroundStatus() {
+            if (!shopBackground) {
+                bgCurrentStatus.textContent = "ยังไม่ได้ตั้งค่าพื้นหลัง";
+                return;
+            }
+            if (shopBackground.mode === 'template') {
+                const t = backgroundTemplates.find(bt => bt.id === shopBackground.template_id);
+                bgCurrentStatus.innerHTML = `กำลังใช้: <span class="font-bold text-[var(--color-accent)]">${t ? t.name : 'Template'}</span> <span class="text-xs text-white/40">(ฟรี)</span>`;
+            } else {
+                bgCurrentStatus.innerHTML = `กำลังใช้: <span class="font-bold text-yellow-400">พื้นหลังของคุณเอง</span> <span class="text-xs text-white/40">(Premium)</span>`;
+            }
+        }
+
+        function renderBackgroundTemplatesGrid() {
+            bgTemplatesGrid.innerHTML = backgroundTemplates.map(t => {
+                const isActive = shopBackground && shopBackground.mode === 'template' && shopBackground.template_id === t.id;
+                return `
+                <button type="button" data-template-id="${t.id}"
+                    class="bg-template-card text-left rounded-lg overflow-hidden border-2 transition-all ${isActive ? 'border-[var(--color-accent)] ring-2 ring-[var(--color-accent)]/50' : 'border-white/10 hover:border-white/30'}">
+                    <img src="${t.image_url}" alt="${t.name}" class="w-full h-24 object-cover">
+                    <div class="p-2 bg-black/40">
+                        <p class="text-xs font-semibold text-white truncate">${t.name}</p>
+                        ${isActive ? '<p class="text-[10px] text-[var(--color-accent)]">✓ กำลังใช้งาน</p>' : ''}
+                    </div>
+                </button>`;
+            }).join('');
+        }
+
+        bgTemplatesGrid.addEventListener('click', async (e) => {
+            const card = e.target.closest('.bg-template-card');
+            if (!card) return;
+            const template_id = card.dataset.templateId;
+
+            showLoading("กำลังเปลี่ยนพื้นหลัง...");
+            try {
+                const { data, error } = await supabase.functions.invoke(API_FUNCTION_NAME, {
+                    body: {
+                        action: 'admin-set-background-template',
+                        payload: { lineUserId, template_id }
+                    }
+                });
+                if (error) throw error;
+                if (data.error) throw new Error(data.error);
+                Swal.fire('สำเร็จ!', data.message, 'success');
+                await fetchBackgroundData();
+            } catch (err) {
+                console.error("Set background template error:", err);
+                showError("ผิดพลาด", "ไม่สามารถเปลี่ยนพื้นหลังได้: " + err.message);
+            } finally {
+                hideLoading();
+            }
+        });
+
+        // --- Custom background: preview + click-to-set door position ---
+        function renderCustomBackgroundPreview() {
+            const isCustom = shopBackground && shopBackground.mode === 'custom';
+            const url = isCustom ? shopBackground.image_url : '';
+            bgCustomUrlInput.value = url || '';
+            pendingDoorRatio = isCustom
+                ? { x: parseFloat(shopBackground.door_x_ratio), y: parseFloat(shopBackground.door_y_ratio) }
+                : null;
+            updateCustomPreviewImage();
+            updateDoorMarker();
+        }
+
+        function updateCustomPreviewImage() {
+            const url = bgCustomUrlInput.value.trim();
+            if (url) {
+                bgCustomPreviewImg.src = url;
+                bgCustomPreviewImg.classList.remove('hidden');
+                bgCustomPlaceholder.classList.add('hidden');
+            } else {
+                bgCustomPreviewImg.classList.add('hidden');
+                bgCustomPlaceholder.classList.remove('hidden');
+            }
+        }
+
+        function updateDoorMarker() {
+            if (pendingDoorRatio) {
+                bgCustomDoorMarker.style.left = (pendingDoorRatio.x * 100) + '%';
+                bgCustomDoorMarker.style.top = (pendingDoorRatio.y * 100) + '%';
+                bgCustomDoorMarker.classList.remove('hidden');
+                bgCustomDoorText.textContent = `x=${pendingDoorRatio.x.toFixed(3)}, y=${pendingDoorRatio.y.toFixed(3)}`;
+            } else {
+                bgCustomDoorMarker.classList.add('hidden');
+                bgCustomDoorText.textContent = 'ยังไม่ได้เลือก';
+            }
+        }
+
+        bgCustomUrlInput.addEventListener('input', () => {
+            updateCustomPreviewImage();
+        });
+
+        bgCustomPreviewWrap.addEventListener('click', (e) => {
+            // ต้องมีภาพ preview ขึ้นแล้วก่อนถึงจะคลิกเลือกตำแหน่งประตูได้
+            if (bgCustomPreviewImg.classList.contains('hidden')) return;
+            const rect = bgCustomPreviewWrap.getBoundingClientRect();
+            const x = (e.clientX - rect.left) / rect.width;
+            const y = (e.clientY - rect.top) / rect.height;
+            pendingDoorRatio = { x: Math.min(1, Math.max(0, x)), y: Math.min(1, Math.max(0, y)) };
+            updateDoorMarker();
+        });
+
+        btnSaveCustomBg.addEventListener('click', async () => {
+            const image_url = bgCustomUrlInput.value.trim();
+            if (!image_url) {
+                showError("ผิดพลาด", "กรุณาวาง URL ภาพพื้นหลังก่อน");
+                return;
+            }
+            if (!pendingDoorRatio) {
+                showError("ผิดพลาด", "กรุณาคลิกบนภาพเพื่อกำหนดตำแหน่งประตูก่อนบันทึก");
+                return;
+            }
+
+            showLoading("กำลังบันทึกพื้นหลัง...");
+            try {
+                const { data, error } = await supabase.functions.invoke(API_FUNCTION_NAME, {
+                    body: {
+                        action: 'admin-set-custom-background',
+                        payload: {
+                            lineUserId,
+                            image_url,
+                            door_x_ratio: pendingDoorRatio.x,
+                            door_y_ratio: pendingDoorRatio.y
+                        }
+                    }
+                });
+                if (error) throw error;
+                if (data.error) throw new Error(data.error);
+                Swal.fire('สำเร็จ!', data.message, 'success');
+                await fetchBackgroundData();
+            } catch (err) {
+                console.error("Save custom background error:", err);
+                showError("ผิดพลาด", "ไม่สามารถบันทึกพื้นหลังได้: " + err.message);
+            } finally {
+                hideLoading();
+            }
         });
 
         // --- PROPS SETTINGS LOGIC ---
