@@ -395,43 +395,6 @@
             50% { box-shadow: 0 0 0 6px rgba(52, 211, 153, 0); }
         }
 
-        /* === STEP 5: DOOR OPEN/CLOSE ANIMATION (เล่นคู่กับ fade ตอนตัวละครเข้าประตู) === */
-        .store-door-frame {
-            perspective: 260px;
-            perspective-origin: center;
-        }
-
-        .door-leaf {
-            position: absolute;
-            top: 0;
-            width: 50%;
-            height: 100%;
-            background-color: #2a1c36;
-            transition: transform 0.35s ease-out, opacity 0.35s ease-out;
-            pointer-events: none;
-        }
-
-        .door-leaf-left {
-            left: 0;
-            border-right: 1px solid #4c3760;
-            transform-origin: left center;
-        }
-
-        .door-leaf-right {
-            right: 0;
-            border-left: 1px solid #4c3760;
-            transform-origin: right center;
-        }
-
-        #storefront-section.door-open .door-leaf-left {
-            transform: rotateY(72deg);
-            opacity: 0.35;
-        }
-
-        #storefront-section.door-open .door-leaf-right {
-            transform: rotateY(-72deg);
-            opacity: 0.35;
-        }
     </style>
 </head>
 <body>
@@ -454,15 +417,6 @@
             
             <!-- 2. Characters & Dynamic Props Layer -->
             <div id="walkway-characters-layer" class="absolute inset-0 pointer-events-none" style="z-index: 3;"></div>
-
-            <!-- 2.5 Door frame + door leaves (บานประตูเปิด/ปิด เล่นคู่กับ fade ตอนตัวละครเข้าร้าน)
-                 หมายเหตุ: แยกออกมานอก .storefront-facade เพราะ facade จะถูกซ่อน (display:none)
-                 เมื่อร้านตั้งค่าพื้นหลังแบบ custom/template — ถ้าซ้อนอยู่ข้างในจะถูกซ่อนไปด้วย
-                 ตำแหน่ง (left/top) จะถูกอัปเดตด้วย JS ให้ตรงกับ currentDoorX/currentDoorY เสมอ -->
-            <div id="door-frame-layer" class="store-door-frame" style="position: absolute; width: 70px; height: 60px; border: 4px solid #8e70aa; border-bottom: none; border-radius: 8px 8px 0 0; pointer-events: none; overflow: hidden; z-index: 4;">
-                <div class="door-leaf door-leaf-left"></div>
-                <div class="door-leaf door-leaf-right"></div>
-            </div>
 
             <!-- 3. Shop Facade in front of characters -->
             <div class="storefront-facade" style="z-index: 4;">
@@ -519,10 +473,6 @@
         let currentDoorX = 0;   // อัปเดตจาก shop_background หรือ fallback
         let currentDoorY = 125; // ค่า default เดิม (fallback ถ้ายังไม่มีข้อมูลพื้นหลัง)
 
-        // === STEP 5: สถานะประตู (เปิด/ปิด) ===
-        let doorCloseTimer = null;
-        let enteringCount = 0; // จำนวนตัวละครที่กำลังเดินเข้าประตูอยู่ตอนนี้ (กันประตูปิดเร็วเกินไปถ้ามีคนเข้าซ้อนกัน)
-
         const currentServingNumberEl = document.getElementById('current-serving-number');
         const storefrontBgImageEl = document.getElementById('storefront-bg-image');
         const waitingListEl = document.getElementById('waiting-list');
@@ -530,27 +480,6 @@
         const connectionText = document.getElementById('connection-text');
         const walkwayLayer = document.getElementById('walkway-characters-layer');
         const storefrontSection = document.getElementById('storefront-section');
-        const doorFrameLayerEl = document.getElementById('door-frame-layer');
-
-        // === STEP 5: เปิด/ปิดประตู ===
-        function openDoor() {
-            enteringCount++;
-            if (doorCloseTimer) {
-                clearTimeout(doorCloseTimer);
-                doorCloseTimer = null;
-            }
-            storefrontSection.classList.add('door-open');
-        }
-
-        function scheduleDoorClose() {
-            enteringCount = Math.max(0, enteringCount - 1);
-            if (enteringCount === 0) {
-                doorCloseTimer = setTimeout(() => {
-                    storefrontSection.classList.remove('door-open');
-                    doorCloseTimer = null;
-                }, 400);
-            }
-        }
 
         async function loadConfig() {
             try {
@@ -672,9 +601,9 @@
                 this.isMoving = false;
                 this.waitingTime = Math.random() * 3000;
 
-                // === STEP 5: สถานะเดินเข้าประตู ===
+                // === STEP 5: สถานะเดินเข้าประตู (fade out เฉยๆ ไม่มี sprite ประตูเปิด/ปิด) ===
                 this.entering = false;   // true ระหว่างเดินผ่านประตู (fade out)
-                this.doorOpened = false; // กันเรียก openDoor() ซ้ำสำหรับตัวละครนี้
+                this.enteredDone = false; // true เมื่อเดินเข้าประตู+fade เสร็จสมบูรณ์แล้ว (รอ backend ลบคิวออกจริง)
                 
                 this.createDomElement();
                 this.updateDomPosition();
@@ -718,6 +647,15 @@
                     return true;
                 }
 
+                // ตัวละครที่เดินเข้าประตู (fade) เสร็จแล้ว: อยู่นิ่งเงียบๆ ใน dictionary ต่อไป
+                // (ไม่ลบออกทันที) รอจน backend เปลี่ยนสถานะคิวนี้ออกจาก active list จริงๆ
+                // (เช่น admin กดยกเลิก/เคลียร์คิว) ค่อยให้ isDestroying ด้านบนลบออกให้ทีหลัง
+                // ถ้าลบออกจาก dictionary ทันทีทั้งที่สถานะยังเป็น CALLED อยู่ จะโดน fetchCurrentData()
+                // spawn ตัวละครใหม่ซ้ำทุก polling รอบ กลายเป็นวนลูปไม่จบ
+                if (this.enteredDone) {
+                    return true;
+                }
+
                 // If CALLED, walk into shop door (middle coordinates: x = canvasWidth/2, y = 115)
                 if (this.status === 'CALLED') {
                     const doorX = currentDoorX;
@@ -738,19 +676,14 @@
                             this.y += (dy / dist) * this.speed;
                             this.updateDirection(dx, dy);
                         } else {
-                            // มาถึงพิกัดประตูพอดี -> เริ่มเข้าประตู: เปิดประตู + เริ่มจางหาย (fade)
+                            // มาถึงพิกัดประตูพอดี -> เริ่มเข้าประตู: เริ่มจางหาย (fade) เฉยๆ ไม่มี sprite ประตู
                             this.entering = true;
                             this.x = doorX;
                             this.direction = 2; // หันหลังเดินขึ้น (เข้าประตู)
                             this.isMoving = true;
-
-                            if (!this.doorOpened) {
-                                this.doorOpened = true;
-                                openDoor();
-                            }
                         }
                     } else {
-                        // กำลังเดินเข้าประตู: เดินขึ้นเล็กน้อยพร้อมจางหายไปเรื่อยๆ (เล่นคู่กับบานประตูที่เปิดอยู่)
+                        // กำลังเดินเข้าประตู: เดินขึ้นเล็กน้อยพร้อมจางหายไปเรื่อยๆ
                         this.y -= this.speed * 0.4;
 
                         let curOpacity = parseFloat(this.dom.style.opacity);
@@ -761,8 +694,8 @@
                         if (curOpacity <= 0) {
                             if (this.dom) this.dom.remove();
                             this.dom = null;
-                            scheduleDoorClose(); // ตัวละครหายเข้าไปแล้ว -> นับถอยหลังปิดประตู
-                            return false; // ลบออกจาก dictionary ทันที
+                            this.enteredDone = true; // จำไว้ว่าเข้าไปแล้ว กันไม่ให้ประมวลผลซ้ำ/ถูก spawn ใหม่
+                            return true; // ยังอยู่ใน dictionary ต่อไป (เงียบๆ) จนกว่า backend จะลบคิวนี้ออกจริง
                         }
                     }
                 } else {
@@ -1046,7 +979,6 @@
                 currentDoorX = canvasWidth / 2;
                 currentDoorY = 125;
                 noWalkZonesPx = [];
-                updateDoorFrameLayerPosition();
                 return;
             }
             currentDoorX = (parseFloat(dbBackground.door_x_ratio) || 0.5) * canvasWidth;
@@ -1059,15 +991,6 @@
                 x2: z.x2 * canvasWidth,
                 y2: z.y2 * canvasHeight
             }));
-
-            updateDoorFrameLayerPosition();
-        }
-
-        // จัดตำแหน่งบานประตู (door-frame-layer) ให้ตรงกับพิกัดประตูปัจจุบันเสมอ (ทั้งพื้นหลัง default และ custom)
-        function updateDoorFrameLayerPosition() {
-            if (!doorFrameLayerEl) return;
-            doorFrameLayerEl.style.left = `${currentDoorX - 35}px`;   // กึ่งกลางความกว้าง 70px
-            doorFrameLayerEl.style.top = `${currentDoorY - 52}px`;    // ให้ขอบล่างของกรอบประตูอยู่ต่ำกว่าพิกัดประตูเล็กน้อย
         }
 
         function syncBackground() {
