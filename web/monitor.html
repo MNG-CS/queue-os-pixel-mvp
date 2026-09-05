@@ -454,7 +454,16 @@
             
             <!-- 2. Characters & Dynamic Props Layer -->
             <div id="walkway-characters-layer" class="absolute inset-0 pointer-events-none" style="z-index: 3;"></div>
-            
+
+            <!-- 2.5 Door frame + door leaves (บานประตูเปิด/ปิด เล่นคู่กับ fade ตอนตัวละครเข้าร้าน)
+                 หมายเหตุ: แยกออกมานอก .storefront-facade เพราะ facade จะถูกซ่อน (display:none)
+                 เมื่อร้านตั้งค่าพื้นหลังแบบ custom/template — ถ้าซ้อนอยู่ข้างในจะถูกซ่อนไปด้วย
+                 ตำแหน่ง (left/top) จะถูกอัปเดตด้วย JS ให้ตรงกับ currentDoorX/currentDoorY เสมอ -->
+            <div id="door-frame-layer" class="store-door-frame" style="position: absolute; width: 70px; height: 60px; border: 4px solid #8e70aa; border-bottom: none; border-radius: 8px 8px 0 0; pointer-events: none; overflow: hidden; z-index: 4;">
+                <div class="door-leaf door-leaf-left"></div>
+                <div class="door-leaf door-leaf-right"></div>
+            </div>
+
             <!-- 3. Shop Facade in front of characters -->
             <div class="storefront-facade" style="z-index: 4;">
                 <div class="store-sign">NextQ Store</div>
@@ -466,11 +475,6 @@
                 <!-- Entrance Indicator Sign -->
                 <div class="entrance-indicator" style="position: absolute; bottom: 62px; left: 50%; transform: translateX(-50%); background-color: #1a0f24; border: 2px solid #8e70aa; padding: 2px 8px; border-radius: 4px; font-size: 9px; font-weight: 800; color: #a8ffb2; box-shadow: 0 0 8px rgba(168,255,178,0.3); animation: floatUpAndDown 1.5s ease-in-out infinite;">
                     ENTRANCE ↓
-                </div>
-                <!-- Door frame + door leaves (บานประตูเปิด/ปิด เล่นคู่กับ fade ตอนตัวละครเข้าร้าน) -->
-                <div class="store-door-frame" style="position: absolute; bottom: -8px; left: 50%; transform: translateX(-50%); width: 70px; height: 60px; border: 4px solid #8e70aa; border-bottom: none; border-radius: 8px 8px 0 0; pointer-events: none; overflow: hidden;">
-                    <div class="door-leaf door-leaf-left"></div>
-                    <div class="door-leaf door-leaf-right"></div>
                 </div>
             </div>
         </section>
@@ -526,6 +530,7 @@
         const connectionText = document.getElementById('connection-text');
         const walkwayLayer = document.getElementById('walkway-characters-layer');
         const storefrontSection = document.getElementById('storefront-section');
+        const doorFrameLayerEl = document.getElementById('door-frame-layer');
 
         // === STEP 5: เปิด/ปิดประตู ===
         function openDoor() {
@@ -850,10 +855,13 @@
                 }
 
                 // Clamp within storefront walk area boundaries
+                // หมายเหตุ: ตัวละคร CALLED ไม่ต้อง clamp แกน y เลย เพราะ logic เดินเข้าประตู/entering
+                // ด้านบนควบคุม y ของตัวเองอยู่แล้ว ถ้ายัง clamp y >= doorY+15 อยู่ จะทำให้เดินเข้าใกล้ประตูได้แค่ระยะหนึ่ง
+                // แล้ว "ชนกำแพงล่องหน" ค้าง ไม่มีวันถึงพิกัดประตูเพื่อ trigger fade ได้เลย
                 {
                     const b = getWanderBounds();
                     this.x = Math.max(b.minX, Math.min(b.maxX, this.x));
-                    if (this.status !== 'CALLED' || this.y > currentDoorY) {
+                    if (this.status !== 'CALLED') {
                         this.y = Math.max(b.minY, Math.min(canvasHeight - 20, this.y));
                     }
                 }
@@ -1038,6 +1046,7 @@
                 currentDoorX = canvasWidth / 2;
                 currentDoorY = 125;
                 noWalkZonesPx = [];
+                updateDoorFrameLayerPosition();
                 return;
             }
             currentDoorX = (parseFloat(dbBackground.door_x_ratio) || 0.5) * canvasWidth;
@@ -1050,6 +1059,15 @@
                 x2: z.x2 * canvasWidth,
                 y2: z.y2 * canvasHeight
             }));
+
+            updateDoorFrameLayerPosition();
+        }
+
+        // จัดตำแหน่งบานประตู (door-frame-layer) ให้ตรงกับพิกัดประตูปัจจุบันเสมอ (ทั้งพื้นหลัง default และ custom)
+        function updateDoorFrameLayerPosition() {
+            if (!doorFrameLayerEl) return;
+            doorFrameLayerEl.style.left = `${currentDoorX - 35}px`;   // กึ่งกลางความกว้าง 70px
+            doorFrameLayerEl.style.top = `${currentDoorY - 52}px`;    // ให้ขอบล่างของกรอบประตูอยู่ต่ำกว่าพิกัดประตูเล็กน้อย
         }
 
         function syncBackground() {
